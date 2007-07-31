@@ -6,3 +6,8 @@ authorizing and capturing of credit cards.
 You probably want to run this application on a super-secured machine that's firewalled
 like crazy and is not accessible from the internet.  And follow the Visa CISP 
 documentation.
+
+
+NOTE ON RUNNING TESTS: running 'rake' will run the integration tests, which do hit the 
+remote payment gateways.  You'll need a valid account with someone like authorize.net 
+to successfully run those tests.  Running 'rake spec' doesn't hit any remote gateways.
