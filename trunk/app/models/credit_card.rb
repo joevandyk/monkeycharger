@@ -1,4 +1,6 @@
 class CreditCard < ActiveRecord::Base
+   include ActiveMerchant::Billing::CreditCardMethods
+   include ActiveMerchant::Billing::CreditCardMethods::ClassMethods
    attr_accessor :cvv, :number
 
    validate :check_for_credit_card_validity
