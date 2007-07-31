@@ -14,13 +14,9 @@ class CreditCard < ActiveRecord::Base
 
    before_create :crypt_number
 
-   # if there's a crypted number, decrypt it, otherwise, use the @number instance var
-   def number(remote_key=nil)
-      @number ||= decrypt_number(remote_key)
-   end
 
    def decrypt!(remote_key)
-      number(remote_key)
+      @number = decrypt_number(remote_key)
       self
    end
 
