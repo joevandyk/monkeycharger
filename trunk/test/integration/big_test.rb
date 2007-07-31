@@ -3,9 +3,10 @@ require "test/test_helper"
 class BigIntegrationTest < ActionController::IntegrationTest
    def test_the_stack
       amount = rand(1000).to_s
-      card = create_credit_card
+      remote_key = '12345'
+      card = create_credit_card(:remote_key => remote_key)
 
-      authorize(amount, card)
+      authorize(amount, card, remote_key)
       assert_response :success
       assert response.headers["X-AuthorizationSuccess"] == true
       assert response.body =~ /\d+/
@@ -17,17 +18,28 @@ class BigIntegrationTest < ActionController::IntegrationTest
    end
 
    def test_with_bad_amount_should_fail
+      remote_key = '12345'
       amount = rand(1000).to_s
-      card = create_credit_card
-      transaction_id = authorize(amount, card)
+      card = create_credit_card(:remote_key => remote_key)
+      transaction_id = authorize(amount, card, remote_key)
       capture(amount.to_i + 1, transaction_id)  # trying to capture with an amount too high
       assert response.headers["X-CaptureSuccess"] != true
+   end
+
+   def test_with_bad_remote_key
+      amount = rand(1000).to_s
+      remote_key = '12345'
+      bad_remote_key = '54321'
+      card = create_credit_card(:remote_key => remote_key)
+
+      authorize(amount, card, bad_remote_key)
+      assert response.headers["X-CaptureSuccess"] != true
+      assert_equal response.body, "The credit card number is invalid"
    end
 
    private
 
    def create_credit_card options={}
-      @remote_key = "12345"
       card_values = { :number         => '4242424242424242', 
                       :year           => Time.now.year + 1, 
                       :month          => Time.now.month, 
@@ -37,8 +49,8 @@ class BigIntegrationTest < ActionController::IntegrationTest
                       :state          => "WA",
                       :zip            => "98115", 
                       :country        => "USA",
-                      :remote_key     => @remote_key }
-      card_values.merge(options)
+                      :remote_key     => 'blurb' }
+      card_values.merge!(options)
       assert_difference "CreditCard.count" do
          post credit_cards_url(:credit_card => card_values, :format => 'xml')
       end
@@ -48,8 +60,8 @@ class BigIntegrationTest < ActionController::IntegrationTest
 
    # If this fails, make sure that you have set up your external payment gateways 
    # correctly (in config/initializers/monkeycharger.rb)
-   def authorize amount, card
-      post authorize_url(:amount => amount, :credit_card_id => card.id, :remote_key => @remote_key)
+   def authorize amount, card, remote_key
+      post authorize_url(:amount => amount, :credit_card_id => card.id, :remote_key => remote_key)
    end
 
    def capture amount, transaction_id
