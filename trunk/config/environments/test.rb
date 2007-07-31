@@ -18,7 +18,3 @@ config.action_controller.perform_caching             = false
 # ActionMailer::Base.deliveries array.
 config.action_mailer.delivery_method = :test
 
-config.after_initialize do
-   ActiveMerchant::Billing::Base.mode = :test
-   $gateway = ActiveMerchant::Billing::AuthorizedNetGateway.new :login => 'cnpdev4399', :password => '29pG9u8uA5vJMj5R'
-end

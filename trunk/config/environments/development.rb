@@ -17,7 +17,3 @@ config.action_view.debug_rjs                         = true
 # Don't care if the mailer can't send
 config.action_mailer.raise_delivery_errors = false
 
-config.after_initialize do
-   ActiveMerchant::Billing::Base.mode = :test
-  $gateway = ActiveMerchant::Billing::AuthorizedNetGateway.new :login => 'cnpdev4399', :password => '29pG9u8uA5vJMj5R'
-end
