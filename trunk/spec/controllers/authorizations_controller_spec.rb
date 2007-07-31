@@ -23,15 +23,17 @@ describe AuthorizationsController, "authorizing a saved card" do
    end
 
    it "should authorize a saved card" do
-      Authorizer.should_receive(:authorize!).with(:amount => '3.99', :credit_card => @credit_card).and_return(true)
+      Authorizer.should_receive(:authorize!).with(:amount => '3.99', :credit_card => @credit_card).and_return('1234')
       post :create, :amount => '3.99', :credit_card_id => @credit_card.id
       response.should be_success
+      response.body.should == '1234'
+      response.headers['X-AuthorizationSuccess'].should be_true
    end
 
    it "should give an error when authorizing a bad card" do
       Authorizer.should_receive(:authorize!).with(:amount => '3.99', :credit_card => @credit_card).and_raise(AuthorizationError.new("problem!"))
       post :create, :amount => '3.99', :credit_card_id => @credit_card.id
-      response.should be_error
+      response.headers['X-AuthorizationSuccess'].should_not be_true
       response.body.should == 'problem!'
    end
 

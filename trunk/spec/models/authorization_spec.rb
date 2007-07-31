@@ -12,7 +12,7 @@ describe Authorizer, "a non-saved card" do
 
    it "authorize! should return the transaction id" do
       $gateway.should_receive(:authorize).with(599, @credit_card).and_return(successful_authorization)
-      Authorizer::authorize!(:credit_card => @credit_card, :amount => '5.99').should == successful_authorization.transaction_id
+      Authorizer::authorize!(:credit_card => @credit_card, :amount => '5.99').should == successful_authorization.authorization
    end
 
    it "authorize! should throw an exception on a unsuccessful authorization" do
@@ -23,7 +23,7 @@ describe Authorizer, "a non-saved card" do
    private
 
    def successful_authorization
-      stub(Object, :success? => true, :transaction_id => '1234')
+      stub(Object, :success? => true, :authorization => '1234')
    end
 
    def unsuccessful_authorization
