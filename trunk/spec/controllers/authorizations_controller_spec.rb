@@ -3,20 +3,28 @@ require File.dirname(__FILE__) + '/../spec_helper'
 describe AuthorizationsController, "authorizing a non-saved card" do
    fixtures :credit_cards
    before(:each) do
-      @credit_card = CreditCard.new(:number => '4111111111111111', :month => '9', :year => '2009', :cvv => '123')
-      CreditCard.should_receive(:new).with(:number => @credit_card.number, :month => @credit_card.month, :year => @credit_card.year, :cvv => @credit_card.cvv).and_return(@credit_card)
-      Authorizer.should_receive(:authorize!).with({:credit_card => @credit_card, :amount => '3.99'}).and_return('authid')
-      post :create, :amount => '3.99', :number => @credit_card.number, :cvv => @credit_card.cvv, :month => @credit_card.month, :year => @credit_card.year
+      @auth_id = 'authid'
+      @credit_card = CreditCard.new(valid_cc_data)
+      CreditCard.should_receive(:new).with(valid_cc_data).and_return(@credit_card)
+      Authorizer.should_receive(:authorize!).with({:credit_card => @credit_card, :amount => '3.99'}).and_return(@auth_id)
+      post_parameters = {:amount => '3.99'}.merge(valid_cc_data)
+      post :create, post_parameters
    end
 
    it "the body of the response should be set to the authorization id " do
-      response.body.should == 'authid'
+      response.body.should == @auth_id
    end
 
    it "the response should be a success" do
       response.should be_success
    end
 
+   def valid_cc_data
+      { :number => '4111111111111111',
+        :month => '9',
+        :year => (Time.now.year + 1).to_s,
+        :cvv => '123' }
+   end
 end
 
 describe "A successful authorization of a saved card" do
@@ -25,7 +33,8 @@ describe "A successful authorization of a saved card" do
    before(:each) do
       @credit_card = credit_cards(:saved_card)
       CreditCard.should_receive(:find).with(@credit_card.id.to_s).and_return(@credit_card)
-      Authorizer.should_receive(:authorize!).with(:amount => '3.99', :credit_card => @credit_card).and_return('authid')
+      @auth_id = 'auth_id'
+      Authorizer.should_receive(:authorize!).with(:amount => '3.99', :credit_card => @credit_card).and_return(@auth_id)
       post :create, :amount => '3.99', :credit_card_id => @credit_card.id
    end
 
@@ -38,7 +47,7 @@ describe "A successful authorization of a saved card" do
    end
 
    it "the response's body  should be set to the authorization id" do
-      response.body.should == 'authid'
+      response.body.should == @auth_id
    end
 end
 
