@@ -11,3 +11,7 @@ documentation.
 NOTE ON RUNNING TESTS: running 'rake' will run the integration tests, which do hit the 
 remote payment gateways.  You'll need a valid account with someone like authorize.net 
 to successfully run those tests.  Running 'rake spec' doesn't hit any remote gateways.
+
+
+Copyright (c) 2007 Joe Van Dyk, released under the MIT license
+
