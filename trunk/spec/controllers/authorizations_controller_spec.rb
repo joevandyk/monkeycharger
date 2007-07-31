@@ -5,8 +5,7 @@ describe AuthorizationsController, "authorizing a non-saved card" do
       @auth_id = 'authid'
       @credit_card = CreditCard.new(valid_cc_data)
       remote_key = '12345'
-      @credit_card.should_receive(:decrypt).with(remote_key)
-      CreditCard.should_receive(:new).with(valid_cc_data).and_return(@credit_card)
+      CreditCard.should_receive(:prepare_for_authorization).and_return(@credit_card)
       Authorizer.should_receive(:authorize!).with({:credit_card => @credit_card, :amount => '3.99'}).and_return(@auth_id)
       post_parameters = {:amount => '3.99', :remote_key => '12345'}.merge(valid_cc_data)
       post :create, post_parameters
@@ -32,10 +31,9 @@ describe "A successful authorization of a saved card" do
    controller_name :authorizations
    before(:each) do
       @credit_card = generate_credit_card
-      CreditCard.should_receive(:find).with(@credit_card.id.to_s).and_return(@credit_card)
+      CreditCard.should_receive(:prepare_for_authorization).and_return(@credit_card)
       @auth_id = 'auth_id'
       remote_key = '12345'
-      @credit_card.should_receive(:decrypt).with(remote_key)
       Authorizer.should_receive(:authorize!).with(:amount => '3.99', :credit_card => @credit_card).and_return(@auth_id)
       post :create, :amount => '3.99', :credit_card_id => @credit_card.id, :remote_key => remote_key
    end
@@ -56,10 +54,11 @@ end
 describe "A failed authorization of a saved card" do
    controller_name :authorizations
    before(:each) do
-      @credit_card = generate_credit_card
+      remote_key = '12345'
+      @credit_card = generate_credit_card(:remote_key => remote_key)
       CreditCard.should_receive(:find).with(@credit_card.id.to_s).and_return(@credit_card)
       Authorizer.should_receive(:authorize!).with(:amount => '3.99', :credit_card => @credit_card).and_raise(AuthorizationError.new("problem!"))
-      post :create, :amount => '3.99', :credit_card_id => @credit_card.id
+      post :create, :amount => '3.99', :credit_card_id => @credit_card.id, :remote_key => remote_key
    end
 
    it "should not set the AuthorizationSuccess header" do

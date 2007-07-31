@@ -14,12 +14,23 @@ class CreditCard < ActiveRecord::Base
 
    before_create :crypt_number
 
+   def self.prepare_for_authorization params
+      if credit_card_id = params[:credit_card_id]
+         find(credit_card_id).decrypt!(params[:remote_key])
+      else
+         new(params)
+      end
+   end
+
    # if there's a crypted number, decrypt it, otherwise, use the @number instance var
    def number(remote_key=nil)
       @number ||= decrypt_number(remote_key)
    end
 
-   alias decrypt number
+   def decrypt!(remote_key)
+      number(remote_key)
+      self
+   end
 
    # Gets the first name from name
    def first_name
