@@ -5,10 +5,10 @@ class Authorizer
    # amount is the amount to charge
    # set :credit_card_id to charge a saved credit card OR
    # set :number, :month, :year, :cvv, etc to charge a new card
-   # example: authorize!('3.99', :credit_card_id => 1
-   # example: authorize!(5, :number => '4111111111111111', :cvv => '123', :month => 9, :year => 2009
-   def self.authorize! amount, credit_card_options={}
-      response = Net::HTTP.post_form(URI.parse(SITE), { :amount => amount }.merge(credit_card_options))
+   # example: authorize!('3.99', 'remotekey', :credit_card_id => 1
+   # example: authorize!(5, 'remotekey', :number => '4111111111111111', :cvv => '123', :month => 9, :year => 2009
+   def self.authorize! amount, remote_key, credit_card_options={}
+      response = Net::HTTP.post_form(URI.parse(SITE), { :amount => amount, :remote_key => remote_key }.merge(credit_card_options))
       case response
       when Net::HTTPSuccess
          if response.header['X-AuthorizationSuccess'] 
