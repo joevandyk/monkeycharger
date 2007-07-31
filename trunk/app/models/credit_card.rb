@@ -14,6 +14,10 @@ class CreditCard < ActiveRecord::Base
 
    before_create :crypt_number
 
+   # I need a better name for this method.  It's being used by the Authorizations's Controller.
+   # Essentially, if I'm authorizing a saved card, I need to search for it, then decrypt it
+   # using the remote key.
+   # Otherwise, I'm just creating a new credit card using the params given to me.
    def self.prepare_for_authorization params
       if credit_card_id = params[:credit_card_id]
          find(credit_card_id).decrypt!(params[:remote_key])
