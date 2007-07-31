@@ -1,4 +1,3 @@
-class AuthorizationError < StandardError; end
 
 module Authorizer
    def self.authorize! options

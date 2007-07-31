@@ -31,7 +31,6 @@ class BigIntegrationTest < ActionController::IntegrationTest
                       :year           => Time.now.year + 1, 
                       :month          => Time.now.month, 
                       :name           => "Joe Van Dyk", 
-                      :cvv            => "123",
                       :street_address => "123 Main",
                       :city           => "Seattle",
                       :state          => "WA",

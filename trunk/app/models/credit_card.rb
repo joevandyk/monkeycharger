@@ -1,11 +1,12 @@
 class CreditCard < ActiveRecord::Base
+   attr_accessor :cvv
 
    validate :check_for_credit_card_validity
    validate :month_and_year_should_be_in_future
    validate :at_least_two_words_in_name
    has_many :authorizations
    has_many :captures
-   validates_presence_of :name, :street_address, :state, :zip, :country, :number, :cvv, :card_type, :city
+   validates_presence_of :name, :street_address, :state, :zip, :country, :number, :card_type, :city
 
    def first_name
       name.split[0] if name

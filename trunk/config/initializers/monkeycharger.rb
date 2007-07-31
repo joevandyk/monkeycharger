@@ -1,3 +1,6 @@
+class AuthorizationError < StandardError; end
+class CaptureError < StandardError; end
+
 case RAILS_ENV
 when 'test'
    ActiveMerchant::Billing::Base.mode = :test

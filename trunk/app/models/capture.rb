@@ -1,4 +1,3 @@
-class CaptureError < StandardError; end
 class Capture 
    def self.capture! amount, transaction_id
       amount = (amount.to_f * 100).to_i

@@ -6,7 +6,6 @@ saved_card:
   card_type: visa
   month: 9
   year: 2009
-  cvv: 123
   street_address: 19646 62nd Ave NE
   city: Kenmore
   state: WA
