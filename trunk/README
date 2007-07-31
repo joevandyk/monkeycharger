@@ -3,4 +3,6 @@ MonkeyCharger is a small stand-alone RESTified Rails app that lets you store
 and charge credit cards.  It uses the ActiveMerchant library for the 
 authorizing and capturing of credit cards.
 
-More to follow.
+You probably want to run this application on a super-secured machine that's firewalled
+like crazy and is not accessible from the internet.  And follow the Visa CISP 
+documentation.
