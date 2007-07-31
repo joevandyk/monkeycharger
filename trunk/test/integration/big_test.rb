@@ -27,6 +27,7 @@ class BigIntegrationTest < ActionController::IntegrationTest
    private
 
    def create_credit_card options={}
+      @remote_key = "12345"
       card_values = { :number         => '4242424242424242', 
                       :year           => Time.now.year + 1, 
                       :month          => Time.now.month, 
@@ -35,7 +36,8 @@ class BigIntegrationTest < ActionController::IntegrationTest
                       :city           => "Seattle",
                       :state          => "WA",
                       :zip            => "98115", 
-                      :country        => "USA" }
+                      :country        => "USA",
+                      :remote_key     => @remote_key }
       card_values.merge(options)
       assert_difference "CreditCard.count" do
          post credit_cards_url(:credit_card => card_values, :format => 'xml')
@@ -47,7 +49,7 @@ class BigIntegrationTest < ActionController::IntegrationTest
    # If this fails, make sure that you have set up your external payment gateways 
    # correctly (in config/initializers/monkeycharger.rb)
    def authorize amount, card
-      post authorize_url(:amount => amount, :credit_card_id => card.id)
+      post authorize_url(:amount => amount, :credit_card_id => card.id, :remote_key => @remote_key)
    end
 
    def capture amount, transaction_id

@@ -2,7 +2,7 @@ class CreditCard < ActiveRecord::Base
    include ActiveMerchant::Billing::CreditCardMethods
    include ActiveMerchant::Billing::CreditCardMethods::ClassMethods
 
-   attr_accessor :cvv, :number
+   attr_accessor :cvv, :number, :remote_key
 
    validates_presence_of :name, :street_address, :state, :zip, :country, :number, :city
 
@@ -15,9 +15,11 @@ class CreditCard < ActiveRecord::Base
    before_create :crypt_number
 
    # if there's a crypted number, decrypt it, otherwise, use the @number instance var
-   def number
-      @number ||= decrypt_number
+   def number(remote_key=nil)
+      @number ||= decrypt_number(remote_key)
    end
+
+   alias decrypt number
 
    # Gets the first name from name
    def first_name
@@ -60,18 +62,18 @@ class CreditCard < ActiveRecord::Base
       c = cipher
       c.encrypt
       c.key = key 
-      c.iv = self.iv = generate_iv 
+      c.iv = self.iv = generate_iv(remote_key)
       temp_number = c.update(number)
       temp_number << c.final
       self.crypted_number = encode_into_base64(temp_number) 
    end
 
    # Decrypts the credit card number
-   def decrypt_number
+   def decrypt_number(remote_key)
       c = cipher
       c.decrypt
       c.key = key
-      c.iv = iv
+      c.iv = generate_iv(remote_key)
       d = c.update(decode_from_base64(self.crypted_number))
       d << c.final
    end
@@ -84,8 +86,9 @@ class CreditCard < ActiveRecord::Base
       Digest::SHA256.digest(@@CreditCardSecretKey)
    end
 
-   def generate_iv
-      encode_into_base64(cipher.random_iv)
+   def generate_iv(remote_key)
+      raise ArgumentError.new("be sure to set the remote key") if remote_key.blank?
+      encode_into_base64(Digest::SHA1.hexdigest(remote_key))
    end
 
    # Chomping is necessary for postgresql

@@ -1,7 +1,6 @@
 require File.dirname(__FILE__) + '/../spec_helper'
 
 describe AuthorizationsController, "authorizing a non-saved card" do
-   fixtures :credit_cards
    before(:each) do
       @auth_id = 'authid'
       @credit_card = CreditCard.new(valid_cc_data)
@@ -29,9 +28,9 @@ end
 
 describe "A successful authorization of a saved card" do
    controller_name :authorizations
-   fixtures :credit_cards
    before(:each) do
-      @credit_card = credit_cards(:saved_card)
+      @remote_key = "12345"
+      @credit_card = generate_credit_card(:remote_key => @remote_key)
       CreditCard.should_receive(:find).with(@credit_card.id.to_s).and_return(@credit_card)
       @auth_id = 'auth_id'
       Authorizer.should_receive(:authorize!).with(:amount => '3.99', :credit_card => @credit_card).and_return(@auth_id)
@@ -53,9 +52,9 @@ end
 
 describe "A failed authorization of a saved card" do
    controller_name :authorizations
-   fixtures :credit_cards
    before(:each) do
-      @credit_card = credit_cards(:saved_card)
+      @remote_key = "12345"
+      @credit_card = generate_credit_card(:remote_key => @remote_key)
       CreditCard.should_receive(:find).with(@credit_card.id.to_s).and_return(@credit_card)
       Authorizer.should_receive(:authorize!).with(:amount => '3.99', :credit_card => @credit_card).and_raise(AuthorizationError.new("problem!"))
       post :create, :amount => '3.99', :credit_card_id => @credit_card.id
