@@ -1,3 +1,5 @@
+class BillingError < StandardError; end
+
 class Authorizer
    SITE = "http://localhost:3001/authorizations"
    # amount is the amount to charge
@@ -9,10 +11,10 @@ class Authorizer
       response = Net::HTTP.post_form(URI.parse(SITE), { :amount => amount }.merge(credit_card_options))
       case response
       when Net::HTTPSuccess
-         if response.header['x-authorizationsuccess'] 
+         if response.header['X-AuthorizationSuccess'] 
             return response.body
          else
-            raise FulfillmentError, response.body
+            raise BillingError, response.body
          end
       else
          raise response.body

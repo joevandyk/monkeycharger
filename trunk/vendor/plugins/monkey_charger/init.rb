@@ -1,1 +1,1 @@
-# Include hook code here
+class FullfillmentError < StandardError; end
