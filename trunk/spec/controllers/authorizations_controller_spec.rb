@@ -59,6 +59,10 @@ describe "A failed authorization of a saved card" do
    it "the body of the response should be set to the reason why the authorization failed" do
       response.body.should == 'problem!'
    end
+
+   it "the response should be a success" do
+      response.should be_success
+   end
 end
 
 describe AuthorizationsController do
