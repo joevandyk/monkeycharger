@@ -28,8 +28,8 @@ class CreditCard < ActiveRecord::Base
    private
 
    def check_for_credit_card_validity
-      errors.add(:year, "is not a valid year") unless valid_expiry_year?(year)
-      errors.add(:month, "is not a valid month") unless valid_month?(month)
+      errors.add(:year, "is not a valid year") unless valid_expiry_year?(year.to_i)
+      errors.add(:month, "is not a valid month") unless valid_month?(month.to_i)
       errors.add(:number, "is not a valid credit card number") unless valid_number?(number)
       errors.add_to_base("We only accept Visa and MasterCard.") unless type?(number) == 'master' or type?(number) == 'visa'
       self.card_type = type?(number)

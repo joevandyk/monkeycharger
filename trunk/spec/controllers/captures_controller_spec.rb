@@ -4,8 +4,9 @@ describe "Capturing with a valid transaction id" do
    controller_name :captures
    before(:each) do
       @transaction_id = 'transactionid'
-      Capture.should_receive(:capture!).with(@transaction_id).and_return(true)
-      post :create, :transaction_id => @transaction_id
+      @amount = rand(100).to_s
+      Capture.should_receive(:capture!).with(@amount, @transaction_id).and_return(true)
+      post :create, :transaction_id => @transaction_id, :amount => @amount
    end
 
    it "the response should be a success" do
@@ -21,9 +22,10 @@ describe "Capturing with a invalid transaction id" do
    controller_name :captures
    before(:each) do
       @transaction_id = 'transactionid'
+      @amount = rand(100).to_s
       @failure_reason = "Because you touch yourself at night"
-      Capture.should_receive(:capture!).with(@transaction_id).and_raise(CaptureError.new(@failure_reason))
-      post :create, :transaction_id => @transaction_id
+      Capture.should_receive(:capture!).with(@amount, @transaction_id).and_raise(CaptureError.new(@failure_reason))
+      post :create, :transaction_id => @transaction_id, :amount => @amount
    end
 
    it "the response should be a success" do

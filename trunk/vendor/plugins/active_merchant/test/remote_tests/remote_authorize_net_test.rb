@@ -5,8 +5,8 @@ class AuthorizeNetTest < Test::Unit::TestCase
     Base.mode = :test
     
     #  Replace with your login and password for the Authorize.net test environment
-    @login = 'cnpdev4399'
-    @password = '29pG9u8uA5vJMj5R'
+    @login = 'LOGIN'
+    @password = 'PASSWORD'
     
     @gateway = AuthorizeNetGateway.new(
       :login => @login,
