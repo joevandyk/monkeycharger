@@ -1,0 +1,14 @@
+development:
+  adapter: postgresql
+  encoding: unicode
+  database: monkey_charger_development
+
+test:
+  adapter: postgresql
+  encoding: unicode
+  database: monkey_charger_test
+
+production:
+  adapter: postgresql
+  encoding: unicode
+  database: monkey_charger_production

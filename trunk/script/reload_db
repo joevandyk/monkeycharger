@@ -1,0 +1,15 @@
+#!/usr/bin/env ruby
+dev_database = "monkey_charger_development"
+
+`mongrel_rails stop`
+sleep 1
+
+`dropdb #{dev_database}`
+`createdb #{dev_database}`
+
+`psql #{dev_database} < tanga.sql`
+
+system "rake db:migrate"
+
+`mongrel_rails start -d`
+

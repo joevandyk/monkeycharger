@@ -1,0 +1,67 @@
+<h1>Editing credit_card</h1>
+
+<%= error_messages_for :credit_card %>
+
+<% form_for(@credit_card) do |f| %>
+  <p>
+    <b>Name</b><br />
+    <%= f.text_field :name %>
+  </p>
+
+  <p>
+    <b>Number</b><br />
+    <%= f.text_field :number %>
+  </p>
+
+  <p>
+    <b>Card type</b><br />
+    <%= f.text_field :card_type %>
+  </p>
+
+  <p>
+    <b>Month</b><br />
+    <%= f.text_field :month %>
+  </p>
+
+  <p>
+    <b>Year</b><br />
+    <%= f.text_field :year %>
+  </p>
+
+  <p>
+    <b>Cvv</b><br />
+    <%= f.text_field :cvv %>
+  </p>
+
+  <p>
+    <b>Street address</b><br />
+    <%= f.text_field :street_address %>
+  </p>
+
+  <p>
+    <b>City</b><br />
+    <%= f.text_field :city %>
+  </p>
+
+  <p>
+    <b>State</b><br />
+    <%= f.text_field :state %>
+  </p>
+
+  <p>
+    <b>Country</b><br />
+    <%= f.text_field :country %>
+  </p>
+
+  <p>
+    <b>Zip</b><br />
+    <%= f.text_field :zip %>
+  </p>
+
+  <p>
+    <%= f.submit "Update" %>
+  </p>
+<% end %>
+
+<%= link_to 'Show', @credit_card %> |
+<%= link_to 'Back', credit_cards_path %>
