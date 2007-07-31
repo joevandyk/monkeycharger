@@ -1,5 +1,5 @@
 class CreditCard < ActiveRecord::Base
-   attr_accessor :cvv
+   attr_accessor :cvv, :number
 
    validate :check_for_credit_card_validity
    validate :month_and_year_should_be_in_future
@@ -8,22 +8,22 @@ class CreditCard < ActiveRecord::Base
    has_many :captures
    validates_presence_of :name, :street_address, :state, :zip, :country, :number, :card_type, :city
 
+   before_create :crypt_number
+
    def first_name
       name.split[0] if name
+   end
+
+   # if there's a crypted number, decrypt it, otherwise, use the @number instance var
+   def number
+      read_attribute(:crypted_number) ? decrypt_number : @number
    end
 
    def last_name
       name.split[1..-1].join(" ") if name
    end
 
-   def verification_value?
-      cvv
-   end
-
-   def authorize amount, ip
-      authorizations.create :amount => amount, :credit_card => self, :ip => ip
-   end
-
+   alias verification_value? cvv
    alias verification_value verification_value?
 
    private
@@ -49,4 +49,35 @@ class CreditCard < ActiveRecord::Base
       errors.add(:name, "must be two words long.") and return false if name and name.split.size < 2
    end
 
+   def crypt_number
+      c = cipher
+      c.encrypt
+      c.key = key 
+      c.iv = generate_iv 
+      temp_number = c.update(number)
+      temp_number << c.final
+      self.crypted_number = Base64.encode64(temp_number).chomp
+   end
+
+   def decrypt_number
+      c = cipher
+      c.decrypt
+      c.key = key
+      c.iv = iv
+      d = c.update(Base64.decode64(self.crypted_number))
+      d << c.final
+      self.number = d
+   end
+
+   def cipher
+      OpenSSL::Cipher::Cipher.new("aes-256-cbc")
+   end
+
+   def key
+      Digest::SHA256.digest(@@CreditCardSecretKey)
+   end
+
+   def generate_iv
+      self.iv = Base64.encode64(cipher.random_iv).chomp
+   end
 end

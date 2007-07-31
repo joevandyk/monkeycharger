@@ -27,8 +27,7 @@ end
 
 
 def generate_credit_card options={}
-   c = CreditCard.new(:number => "4111111111111111", :month => Time.now.month, :year => Time.now.year, :name => "Joe Van Dyk", :cvv => 123, :street_address => '123 Main', :city => 'Albany', :state => 'OR', :zip => 12345, :country => 'U.S')
-   options.each { |o, v| c.send("#{o}=", v) }
+   c = CreditCard.new({:number => "4111111111111111", :month => Time.now.month, :year => Time.now.year, :name => "Joe Van Dyk", :cvv => 123, :street_address => '123 Main', :city => 'Albany', :state => 'OR', :zip => 12345, :country => 'U.S'}.merge(options))
    c.card_type = type?(c.number)
    c.save
    c

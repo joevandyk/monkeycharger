@@ -2,7 +2,8 @@
 saved_card:
   id: 1
   name: Joe Van Dyk
-  number: 4111111111111111
+  crypted_number: <%= Base64.encode64("4111111111111111") %>
+  iv: <%= Base64.encode64("hello world") %>
   card_type: visa
   month: 9
   year: 2009
