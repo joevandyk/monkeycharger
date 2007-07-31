@@ -1,15 +1,20 @@
 require "test/test_helper"
 
 class BigIntegrationTest < ActionController::IntegrationTest
-   def test_the_stack
-      amount = rand(1000).to_s
+   def test_the_happy_path
       remote_key = '12345'
-      card = create_credit_card(:remote_key => remote_key)
 
+      card = nil
+      assert_difference "CreditCard.count" do
+         card = create_credit_card(:remote_key => remote_key)
+      end
+      assert_response 201 # FIXME wut
+
+      amount = rand(1000).to_s
       authorize(amount, card, remote_key)
       assert_response :success
-      assert response.headers["X-AuthorizationSuccess"] == true
-      assert response.body =~ /\d+/
+      assert_equal response.headers["X-AuthorizationSuccess"], true, "   \n\n **** if this fails, read the README. **** \n\n"
+      assert response.body =~ /^\d+$/
       transaction_id = response.body
 
       capture(amount, transaction_id)
@@ -17,16 +22,24 @@ class BigIntegrationTest < ActionController::IntegrationTest
       assert response.headers["X-CaptureSuccess"] == true
    end
 
-   def test_with_bad_amount_should_fail
+   def test_storing_a_bad_card
+      card = nil
+      assert_no_difference "CreditCard.count" do
+        card = create_credit_card(:number => 'oh crap')
+      end
+       assert card.errors.on(:number)
+   end
+
+   def test_capturing_a_bad_amount_should_fail
       remote_key = '12345'
-      amount = rand(1000).to_s
       card = create_credit_card(:remote_key => remote_key)
+      amount = rand(1000).to_s
       transaction_id = authorize(amount, card, remote_key)
       capture(amount.to_i + 1, transaction_id)  # trying to capture with an amount too high
       assert response.headers["X-CaptureSuccess"] != true
    end
 
-   def test_with_bad_remote_key
+   def test_authorizing_with_bad_remote_key_should_suck
       amount = rand(1000).to_s
       remote_key = '12345'
       bad_remote_key = '54321'
@@ -51,15 +64,10 @@ class BigIntegrationTest < ActionController::IntegrationTest
                       :country        => "USA",
                       :remote_key     => 'blurb' }
       card_values.merge!(options)
-      assert_difference "CreditCard.count" do
-         post credit_cards_url(:credit_card => card_values, :format => 'xml')
-      end
-      assert_response 201 # FIXME wut
+      post credit_cards_url(:credit_card => card_values, :format => 'xml')
       assigns(:credit_card)
    end
 
-   # If this fails, make sure that you have set up your external payment gateways 
-   # correctly (in config/initializers/monkeycharger.rb)
    def authorize amount, card, remote_key
       post authorize_url(:amount => amount, :credit_card_id => card.id, :remote_key => remote_key)
    end
