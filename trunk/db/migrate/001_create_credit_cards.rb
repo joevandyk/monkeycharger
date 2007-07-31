@@ -8,11 +8,11 @@ class CreateCreditCards < ActiveRecord::Migration
       t.string :card_type, :null => false
       t.string :month, :null => false
       t.string :year, :null => false
-      t.string :street_address, :null => false
-      t.string :city, :null => false
-      t.string :state, :null => false
-      t.string :country, :null => false
-      t.string :zip, :null => false
+      t.string :street_address
+      t.string :city
+      t.string :state
+      t.string :country
+      t.string :zip
 
       t.timestamps 
     end

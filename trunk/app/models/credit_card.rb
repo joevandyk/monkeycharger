@@ -4,7 +4,7 @@ class CreditCard < ActiveRecord::Base
 
    attr_accessor :cvv, :number, :remote_key
 
-   validates_presence_of :name, :street_address, :state, :zip, :country, :number, :city
+   validates_presence_of :name, :number #, :street_address, :state, :zip, :country, :number, :city
 
    validate :check_for_credit_card_validity
    validate :month_and_year_should_be_in_future
@@ -12,8 +12,13 @@ class CreditCard < ActiveRecord::Base
    has_many :authorizations
    has_many :captures
 
+   before_validation :convert_number_to_string
    before_create :crypt_number
    before_create :save_last_four_digits
+
+   def to_xml
+      super(:only => [:last_four_digits, :name, :month, :year, :card_type, :id])
+   end
 
 
    def decrypt!(remote_key)
@@ -63,7 +68,7 @@ class CreditCard < ActiveRecord::Base
       c.encrypt
       c.key = key 
       c.iv = self.iv = generate_iv(remote_key)
-      temp_number = c.update(number)
+      temp_number = c.update(@number)
       temp_number << c.final
       self.crypted_number = encode_into_base64(temp_number) 
    end
@@ -102,5 +107,10 @@ class CreditCard < ActiveRecord::Base
 
    def save_last_four_digits
       self.last_four_digits = @number[-4..-1]
+   end
+
+   def convert_number_to_string
+      @remote_key = @remote_key.to_s
+      @number = @number.to_s
    end
 end

@@ -4,7 +4,7 @@ include CreditCardsHelper
 
 describe CreditCard, "a valid credit card" do
    before(:each) do
-      @number = "4242424242424242"
+      @number = 4242424242424242
       @remote_key = '12345'
       @credit_card = generate_credit_card :number => @number, :remote_key => '12345'
    end
@@ -16,7 +16,7 @@ describe CreditCard, "a valid credit card" do
    it "the number should be able to be decrypted" do
       card = CreditCard.find(@credit_card)
       card.decrypt!(@remote_key)
-      card.number.should == @number
+      card.number.should == @number.to_s
    end
 
    it "the number shouldn't be able to be decrypted if the secret key is wrong" do
