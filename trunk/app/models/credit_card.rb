@@ -13,6 +13,7 @@ class CreditCard < ActiveRecord::Base
    has_many :captures
 
    before_create :crypt_number
+   before_create :save_last_four_digits
 
 
    def decrypt!(remote_key)
@@ -97,5 +98,9 @@ class CreditCard < ActiveRecord::Base
 
    def decode_from_base64 string
       Base64.decode64(string)
+   end
+
+   def save_last_four_digits
+      self.last_four_digits = @number[-4..-1]
    end
 end

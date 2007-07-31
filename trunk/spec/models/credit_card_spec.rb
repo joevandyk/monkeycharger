@@ -9,6 +9,10 @@ describe CreditCard, "a valid credit card" do
       @credit_card = generate_credit_card :number => @number, :remote_key => '12345'
    end
 
+   it "should save the last four digits" do
+      @credit_card.last_four_digits.should == '4242'
+   end
+
    it "the number should be able to be decrypted" do
       card = CreditCard.find(@credit_card)
       card.decrypt!(@remote_key)
