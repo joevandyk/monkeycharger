@@ -13,7 +13,7 @@ describe AuthorizationsController, "authorizing a non-saved card" do
       response.body.should == 'authid'
    end
 
-   it "should be a success" do
+   it "the response should be a success" do
       response.should be_success
    end
 
@@ -33,11 +33,11 @@ describe "A successful authorization of a saved card" do
       response.headers['X-AuthorizationSuccess'].should be_true
    end
 
-   it "should be a success" do
+   it "the response should be a success" do
       response.should be_success
    end
 
-   it "the body of the response should be set to the authorization id" do
+   it "the response's body  should be set to the authorization id" do
       response.body.should == 'authid'
    end
 end
@@ -56,7 +56,7 @@ describe "A failed authorization of a saved card" do
       response.headers['X-AuthorizationSuccess'].should_not be_true
    end
 
-   it "the body of the response should be set to the reason why the authorization failed" do
+   it "the response's body  should be set to the reason why the authorization failed" do
       response.body.should == 'problem!'
    end
 
