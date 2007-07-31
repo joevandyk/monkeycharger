@@ -29,8 +29,7 @@ end
 describe "A successful authorization of a saved card" do
    controller_name :authorizations
    before(:each) do
-      @remote_key = "12345"
-      @credit_card = generate_credit_card(:remote_key => @remote_key)
+      @credit_card = generate_credit_card
       CreditCard.should_receive(:find).with(@credit_card.id.to_s).and_return(@credit_card)
       @auth_id = 'auth_id'
       Authorizer.should_receive(:authorize!).with(:amount => '3.99', :credit_card => @credit_card).and_return(@auth_id)
@@ -53,8 +52,7 @@ end
 describe "A failed authorization of a saved card" do
    controller_name :authorizations
    before(:each) do
-      @remote_key = "12345"
-      @credit_card = generate_credit_card(:remote_key => @remote_key)
+      @credit_card = generate_credit_card
       CreditCard.should_receive(:find).with(@credit_card.id.to_s).and_return(@credit_card)
       Authorizer.should_receive(:authorize!).with(:amount => '3.99', :credit_card => @credit_card).and_raise(AuthorizationError.new("problem!"))
       post :create, :amount => '3.99', :credit_card_id => @credit_card.id
