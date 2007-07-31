@@ -19,7 +19,8 @@ describe CreditCard, "a valid credit card" do
 
    it "the number shouldn't be able to be decrypted if the key is wrong" do
       @@CreditCardSecretKey = "asdf"
-      lambda { @credit_card.reload.number }.should raise_error(Exception)
+      card = CreditCard.find(@credit_card.id)
+      lambda { card.reload.number }.should raise_error(Exception)
    end
 end
 

@@ -4,7 +4,7 @@ class CreditCard < ActiveRecord::Base
 
    attr_accessor :cvv, :number
 
-   validates_presence_of :name, :street_address, :state, :zip, :country, :number, :card_type, :city
+   validates_presence_of :name, :street_address, :state, :zip, :country, :number, :city
 
    validate :check_for_credit_card_validity
    validate :month_and_year_should_be_in_future
@@ -16,7 +16,7 @@ class CreditCard < ActiveRecord::Base
 
    # if there's a crypted number, decrypt it, otherwise, use the @number instance var
    def number
-      read_attribute(:crypted_number) ? decrypt_number : @number
+      @number ||= decrypt_number
    end
 
    # Gets the first name from name
@@ -39,9 +39,8 @@ class CreditCard < ActiveRecord::Base
       errors.add(:year, "is not a valid year") unless valid_expiry_year?(year.to_i)
       errors.add(:month, "is not a valid month") unless valid_month?(month.to_i)
       errors.add(:number, "is not a valid credit card number") unless valid_number?(number)
-      errors.add_to_base("We only accept Visa and MasterCard.") unless type?(number) == 'master' or type?(number) == 'visa'
       self.card_type = type?(number)
-      logger.info type?(number)
+      errors.add_to_base("We only accept Visa and MasterCard.") unless self.card_type == 'master' or self.card_type == 'visa'
    end
 
    def month_and_year_should_be_in_future
@@ -75,15 +74,14 @@ class CreditCard < ActiveRecord::Base
       c.iv = iv
       d = c.update(Base64.decode64(self.crypted_number))
       d << c.final
-      self.number = d
    end
 
    def cipher
-      @cipher ||= OpenSSL::Cipher::Cipher.new("aes-256-cbc")
+      OpenSSL::Cipher::Cipher.new("aes-256-cbc")
    end
 
    def key
-      @key ||= Digest::SHA256.digest(@@CreditCardSecretKey)
+      Digest::SHA256.digest(@@CreditCardSecretKey)
    end
 
    def generate_iv
