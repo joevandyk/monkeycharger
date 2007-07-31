@@ -60,10 +60,10 @@ class CreditCard < ActiveRecord::Base
       c = cipher
       c.encrypt
       c.key = key 
-      c.iv = generate_iv 
+      c.iv = self.iv = generate_iv 
       temp_number = c.update(number)
       temp_number << c.final
-      self.crypted_number = Base64.encode64(temp_number).chomp # the chomp is necessary to insert it into postgres correctly
+      self.crypted_number = encode_into_base64(temp_number) 
    end
 
    # Decrypts the credit card number
@@ -72,7 +72,7 @@ class CreditCard < ActiveRecord::Base
       c.decrypt
       c.key = key
       c.iv = iv
-      d = c.update(Base64.decode64(self.crypted_number))
+      d = c.update(decode_from_base64(self.crypted_number))
       d << c.final
    end
 
@@ -85,6 +85,15 @@ class CreditCard < ActiveRecord::Base
    end
 
    def generate_iv
-      self.iv = Base64.encode64(cipher.random_iv).chomp # The chomp is necessary to insert it into postgres correctly
+      encode_into_base64(cipher.random_iv)
+   end
+
+   # Chomping is necessary for postgresql
+   def encode_into_base64 string
+      Base64.encode64(string).chomp
+   end
+
+   def decode_from_base64 string
+      Base64.decode64(string)
    end
 end
