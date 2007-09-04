@@ -1,9 +1,11 @@
 class CapturesController < ApplicationController
   def create
-     Capture::capture!(params[:amount], params[:transaction_id])
-     response.headers["X-CaptureSuccess"] = true
-     render :text => 'ok'
-  rescue CaptureError => e
-     render :text => e.message
+    @authorization = Authorization.find params[:authorization]
+    @capture = Capture.new :amount => params[:amount], :authorization => @authorization
+    if @capture.save
+      render :xml => @capture.to_xml, :status => :created
+    else
+      render :xml => @capture.errors.to_xml, :status => :unprocessable_entity
+    end
   end
 end

@@ -1,10 +1,11 @@
 class AuthorizationsController < ApplicationController
   def create
-     @credit_card   = Authorizer.prepare_credit_card_for_authorization(params)
-     transaction_id = Authorizer::authorize!(:amount => params[:amount], :credit_card => @credit_card)
-     response.headers['X-AuthorizationSuccess'] = true
-     render :text => transaction_id
-  rescue AuthorizationError => e
-     render :text => e.message
+    @authorization = Authorization.new params[:authorization]
+    logger.info @authorization
+    if @authorization.save
+      render :xml => @authorization.to_xml, :status => :created
+    else
+      render :xml => @authorization.errors.to_xml, :status => :unprocessable_entity
+    end
   end
 end

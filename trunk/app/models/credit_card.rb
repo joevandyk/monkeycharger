@@ -93,7 +93,7 @@ class CreditCard < ActiveRecord::Base
    end
 
    def generate_iv(remote_salt)
-      raise ArgumentError.new("be sure to set the remote key") if remote_salt.blank?
+      raise ArgumentError.new("be sure to set the remote_salt") if remote_salt.blank?
       encode_into_base64(Digest::SHA1.hexdigest(remote_salt))
    end
 

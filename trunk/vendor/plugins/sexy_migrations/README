@@ -1,0 +1,55 @@
+Sexy Migrations
+===============
+
+Sexy migrations.
+
+class SexyRight < ActiveRecord::Migration
+  def self.up
+    create_table :users do 
+      string      :name
+      foreign_key :group  # => makes group_id
+      timestamps!         # => created_at and updated_at
+    end
+  end
+
+  def self.down
+    drop_table :users
+  end
+end
+
+
+Pass :ref => true to a foreign_key declaration to make it a real 
+foreign key constraint.
+
+  foreign_key :user, :ref => true  # makes fk constraint, references 'users' table
+
+  Also: foreign_keys, fkey, fkeys
+
+Use polymorphic(name) to make polymorphicish id / type columns.
+
+  polymorphic :item # => makes item_id and item_type
+
+  Also: polymorphic!
+
+The timestamps method accepts a list of symbols which it will create
+as datetime columns.
+
+  timestamps! :published_at  # => created published_at in addition to 
+                             #    created_at and updated_at
+
+  Also: timestamps, auto_dates, auto_dates!
+
+The inheritable method helps you out with STI, a bit.
+
+  inheritable!  # => t.column :type, :string 
+
+  Also: inheritable
+
+And then we've got locking:
+
+  locking! # => t.column :lock_version, :integer, :default => 0
+
+  Also: locking, locks!, locks.
+
+>> Chris Wanstrath
+=> chris[at]ozmm[dot]org

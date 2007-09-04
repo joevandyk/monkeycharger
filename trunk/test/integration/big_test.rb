@@ -8,18 +8,19 @@ class BigIntegrationTest < ActionController::IntegrationTest
       assert_difference "CreditCard.count" do
          card = create_credit_card(:remote_salt => remote_salt)
       end
-      assert_response 201 # FIXME wut
+      assert_response :created
 
-      amount = rand(1000).to_s
-      authorize(amount, card, remote_salt)
-      assert_response :success
-      assert_equal response.headers["X-AuthorizationSuccess"], true, "   \n\n **** if this fails, read the README. **** \n\n"
-      assert response.body =~ /^\d+$/
-      transaction_id = response.body
+      amount = (rand(1000) + 1).to_s
+      assert_difference 'Authorization.count' do
+        authorize_existing_card(amount, card, remote_salt)
+      end
+      assert_response :created
+      authorization = assigns(:authorization)
 
-      capture(amount, transaction_id)
-      assert_response :success
-      assert response.headers["X-CaptureSuccess"] == true
+      assert_difference 'Capture.count' do
+        capture(amount, authorization)
+      end
+      assert_response :created
    end
 
    def test_storing_a_bad_card
@@ -41,7 +42,7 @@ class BigIntegrationTest < ActionController::IntegrationTest
       remote_salt = '12345'
       card = create_credit_card(:remote_salt => remote_salt)
       amount = rand(1000).to_s
-      transaction_id = authorize(amount, card, remote_salt)
+      transaction_id = authorize_existing_card(amount, card, remote_salt)
       capture(amount.to_i + 1, transaction_id)  # trying to capture with an amount too high
       assert response.headers["X-CaptureSuccess"] != true
    end
@@ -52,9 +53,9 @@ class BigIntegrationTest < ActionController::IntegrationTest
       bad_remote_salt = '54321'
       card = create_credit_card(:remote_salt => remote_salt)
 
-      authorize(amount, card, bad_remote_salt)
-      assert response.headers["X-CaptureSuccess"] != true
-      assert_equal response.body, "The credit card number is invalid"
+      assert_no_difference 'Authorization.count' do
+        authorize_existing_card(amount, card, bad_remote_salt)
+      end
    end
 
 
@@ -76,12 +77,12 @@ class BigIntegrationTest < ActionController::IntegrationTest
       assigns(:credit_card)
    end
 
-   def authorize amount, card, remote_salt
-      post authorize_url(:amount => amount, :credit_card_id => card.id, :remote_salt => remote_salt)
+   def authorize_existing_card amount, card, remote_salt
+      post authorize_url(:authorization => { :amount => amount, :credit_card_id => card.id, :remote_salt => remote_salt })
    end
 
-   def capture amount, transaction_id
-      post capture_url(:amount => amount, :transaction_id => transaction_id)
+   def capture amount, authorization
+      post capture_url(:amount => amount, :authorization => authorization)
    end
 
 end

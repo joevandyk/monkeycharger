@@ -1,0 +1,2 @@
+class VoidsController < ApplicationController
+end
