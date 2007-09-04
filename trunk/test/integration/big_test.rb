@@ -58,6 +58,14 @@ class BigIntegrationTest < ActionController::IntegrationTest
       end
    end
 
+   def test_voiding_an_authorized_order
+     card = create_credit_card
+     amount = rand(1000).to_s
+     authorization = authorize_existing_card(amount, card)
+     assert_difference 'Void.count' do
+       void(authorization)
+     end
+   end
 
    private
 
@@ -77,12 +85,19 @@ class BigIntegrationTest < ActionController::IntegrationTest
       assigns(:credit_card)
    end
 
-   def authorize_existing_card amount, card, remote_salt
-      post authorize_url(:authorization => { :amount => amount, :credit_card_id => card.id, :remote_salt => remote_salt })
+   def authorize_existing_card amount, card, remote_salt='blurb'
+      post authorizations_url(:authorization => { :amount => amount, :credit_card_id => card.id, :remote_salt => remote_salt })
+      assigns(:authorization)
    end
 
    def capture amount, authorization
-      post capture_url(:amount => amount, :authorization => authorization)
+      post captures_url(:amount => amount, :authorization => authorization)
+      assigns(:capture)
+   end
+
+   def void thing_to_void
+     post voids_url(:void => { :voidee_type => thing_to_void.class, :voidee_id => thing_to_void})
+     assigns(:void)
    end
 
 end

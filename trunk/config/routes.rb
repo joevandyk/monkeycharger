@@ -1,5 +1,7 @@
 ActionController::Routing::Routes.draw do |map|
    map.resources :credit_cards 
-   map.authorize '/authorizations', :controller => 'authorizations', :action => 'create'
-   map.capture   '/captures', :controller => 'captures', :action => 'create'
+   map.resources :voids
+   map.resources :refunds
+   map.resources :captures
+   map.resources :authorizations
 end
