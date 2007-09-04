@@ -4,7 +4,7 @@ module Authorizer
       if credit_card_id = params[:credit_card_id]
          CreditCard.find(credit_card_id).decrypt!(params[:remote_key])
       else
-         CreditCard.new(params)
+         CreditCard.new(:number => params[:number], :cvv => params[:cvv], :month => params[:month], :year => params[:year], :name => params[:name])
       end
    end
 
