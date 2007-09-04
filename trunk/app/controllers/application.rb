@@ -3,4 +3,5 @@
 
 class ApplicationController < ActionController::Base
   helper :all # include all helpers, all the time
+  filter_parameter_logging :crypted_number, :remote_key, :cvv, :number
 end
