@@ -10,6 +10,7 @@ class Authorization < ActiveRecord::Base
 
   validates_presence_of :transaction_id
   validates_presence_of :remote_salt
+  validates_presence_of :last_four_digits
 
   
   def initialize attributes
@@ -29,6 +30,7 @@ class Authorization < ActiveRecord::Base
     response = $gateway.authorize(self.amount, self.credit_card)
     if response.success?
       self.transaction_id = response.authorization
+      self.last_four_digits = self.credit_card.last_four_digits
     else
       errors.add_to_base(response.message)
       return false

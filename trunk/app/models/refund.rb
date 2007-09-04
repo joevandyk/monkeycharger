@@ -9,7 +9,7 @@ class Refund < ActiveRecord::Base
 
   # Does the refund against the gateway
   def refund!
-    response = $gateway.credit(authorization.transaction_id)
+    response = $gateway.credit(self.amount, authorization.transaction_id, :card_number => authorization.last_four_digits )
     if response.success?
       self.transaction_id = response.authorization
     else

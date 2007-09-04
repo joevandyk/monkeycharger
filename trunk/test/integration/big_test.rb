@@ -67,6 +67,20 @@ class BigIntegrationTest < ActionController::IntegrationTest
      end
    end
 
+   def test_voiding_a_refund
+     card = create_credit_card
+     amount = rand(1000).to_s
+     authorization = authorize_existing_card(amount, card)
+     capture(amount, authorization)
+     # TODO not sure how to test a refund, other than mocking out the calls to $gateway
+     #assert_difference 'Refund.count' do
+       #refund = refund(amount, authorization)
+     #end
+     #assert_difference 'Void.count' do
+       #void(refund) 
+     #end
+   end
+
    private
 
    def create_credit_card options={}
@@ -93,6 +107,11 @@ class BigIntegrationTest < ActionController::IntegrationTest
    def capture amount, authorization
       post captures_url(:amount => amount, :authorization => authorization)
       assigns(:capture)
+   end
+
+   def refund amount, authorization
+      post refunds_url(:amount => amount, :authorization => authorization)
+      assigns(:refund)
    end
 
    def void thing_to_void

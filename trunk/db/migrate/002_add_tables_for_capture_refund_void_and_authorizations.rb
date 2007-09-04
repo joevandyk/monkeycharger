@@ -4,6 +4,7 @@ class AddTablesForCaptureRefundVoidAndAuthorizations < ActiveRecord::Migration
     create_table :authorizations do |t|
       integer     :credit_card_id
       integer     :transaction_id,  :null => false
+      string      :last_four_digits, :null => false
       decimal     :amount,          :null => false
       timestamps!
     end
