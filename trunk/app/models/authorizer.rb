@@ -2,7 +2,7 @@
 module Authorizer
    def self.prepare_credit_card_for_authorization params
       if credit_card_id = params[:credit_card_id]
-         CreditCard.find(credit_card_id).decrypt!(params[:remote_key])
+         CreditCard.find(credit_card_id).decrypt!(params[:remote_salt])
       else
          CreditCard.new(:number => params[:number], :cvv => params[:cvv], :month => params[:month], :year => params[:year], :name => params[:name])
       end

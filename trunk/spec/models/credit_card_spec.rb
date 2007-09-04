@@ -5,8 +5,8 @@ include CreditCardsHelper
 describe CreditCard, "a valid credit card" do
    before(:each) do
       @number = 4242424242424242
-      @remote_key = '12345'
-      @credit_card = generate_credit_card :number => @number, :remote_key => '12345'
+      @remote_salt = '12345'
+      @credit_card = generate_credit_card :number => @number, :remote_salt => '12345'
    end
 
    it "should save the last four digits" do
@@ -15,14 +15,14 @@ describe CreditCard, "a valid credit card" do
 
    it "the number should be able to be decrypted" do
       card = CreditCard.find(@credit_card)
-      card.decrypt!(@remote_key)
+      card.decrypt!(@remote_salt)
       card.number.should == @number.to_s
    end
 
    it "the number shouldn't be able to be decrypted if the secret key is wrong" do
       @@CreditCardSecretKey = "asdf"
       card = CreditCard.find(@credit_card.id)
-      lambda { card.decrypt!(@remote_key) }.should raise_error(Exception)
+      lambda { card.decrypt!(@remote_salt) }.should raise_error(Exception)
    end
    
    it "the number shouldn't be able to be decrypted if the remote key is wrong" do

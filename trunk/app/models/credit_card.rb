@@ -2,13 +2,14 @@ class CreditCard < ActiveRecord::Base
    include ActiveMerchant::Billing::CreditCardMethods
    include ActiveMerchant::Billing::CreditCardMethods::ClassMethods
 
-   attr_accessor :cvv, :number, :remote_key
+   attr_accessor :cvv, :number, :remote_salt
 
    validates_presence_of :name, :number #, :street_address, :state, :zip, :country, :number, :city
 
    validate :check_for_credit_card_validity
    validate :month_and_year_should_be_in_future
    validate :at_least_two_words_in_name
+   validates_presence_of :remote_salt
    has_many :authorizations
    has_many :captures
 
@@ -21,8 +22,8 @@ class CreditCard < ActiveRecord::Base
    end
 
 
-   def decrypt!(remote_key)
-      @number = decrypt_number(remote_key)
+   def decrypt!(remote_salt)
+      @number = decrypt_number(remote_salt)
       self
    end
 
@@ -67,18 +68,18 @@ class CreditCard < ActiveRecord::Base
       c = cipher
       c.encrypt
       c.key = key 
-      c.iv = self.iv = generate_iv(remote_key)
+      c.iv = self.iv = generate_iv(remote_salt)
       temp_number = c.update(@number)
       temp_number << c.final
       self.crypted_number = encode_into_base64(temp_number) 
    end
 
    # Decrypts the credit card number
-   def decrypt_number(remote_key)
+   def decrypt_number(remote_salt)
       c = cipher
       c.decrypt
       c.key = key
-      c.iv = generate_iv(remote_key)
+      c.iv = generate_iv(remote_salt)
       d = c.update(decode_from_base64(self.crypted_number))
       d << c.final
    end
@@ -91,9 +92,9 @@ class CreditCard < ActiveRecord::Base
       Digest::SHA256.digest(@@CreditCardSecretKey)
    end
 
-   def generate_iv(remote_key)
-      raise ArgumentError.new("be sure to set the remote key") if remote_key.blank?
-      encode_into_base64(Digest::SHA1.hexdigest(remote_key))
+   def generate_iv(remote_salt)
+      raise ArgumentError.new("be sure to set the remote key") if remote_salt.blank?
+      encode_into_base64(Digest::SHA1.hexdigest(remote_salt))
    end
 
    # Chomping is necessary for postgresql
@@ -110,7 +111,7 @@ class CreditCard < ActiveRecord::Base
    end
 
    def convert_number_to_string
-      @remote_key = @remote_key.to_s
+      @remote_salt = @remote_salt.to_s
       @number = @number.to_s
    end
 end
