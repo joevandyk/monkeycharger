@@ -1,7 +1,6 @@
 class AuthorizationsController < ApplicationController
   def create
     @authorization = Authorization.new params[:authorization]
-    logger.info @authorization
     if @authorization.save
       render :xml => @authorization.to_xml, :status => :created
     else
