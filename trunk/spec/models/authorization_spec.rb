@@ -3,7 +3,7 @@ require File.dirname(__FILE__) + '/../spec_helper'
 describe Authorizer, "a non-saved card" do
    before(:each) do
       @salt = '12345'
-      @credit_card = CreditCard.create!(:number => '4111111111111111', :year => 2009, :month => 9, :name => 'Joe Van Dyk', :cvv => '123', :remote_salt => @salt)
+      @credit_card = generate_credit_card
       @amt = BigDecimal.new '5.99'
    end
 

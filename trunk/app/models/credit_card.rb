@@ -4,7 +4,7 @@ class CreditCard < ActiveRecord::Base
 
    attr_accessor :cvv, :number, :remote_salt
 
-   validates_presence_of :name, :number #, :street_address, :state, :zip, :country, :number, :city
+   validates_presence_of :name, :number, :street_address, :state, :zip, :country, :number, :city
 
    validate :check_for_credit_card_validity
    validate :month_and_year_should_be_in_future
