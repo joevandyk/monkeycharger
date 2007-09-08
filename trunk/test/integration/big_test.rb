@@ -106,7 +106,7 @@ class BigIntegrationTest < ActionController::IntegrationTest
    end
 
    def capture amount, authorization
-      post captures_url(:amount => amount, :authorization => authorization)
+      post captures_url(:capture => {:amount => amount, :authorization => authorization})
       assigns(:capture)
    end
 
