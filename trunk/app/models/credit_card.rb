@@ -2,14 +2,14 @@ class CreditCard < ActiveRecord::Base
    include ActiveMerchant::Billing::CreditCardMethods
    include ActiveMerchant::Billing::CreditCardMethods::ClassMethods
 
-   attr_accessor :cvv, :number, :remote_salt
+   attr_accessor :cvv, :number, :passphrase
 
    validates_presence_of :name, :number, :street_address, :state, :zip, :country, :number, :city
 
    validate :check_for_credit_card_validity
    validate :month_and_year_should_be_in_future
    validate :at_least_two_words_in_name
-   validates_presence_of :remote_salt
+   validates_presence_of :passphrase
    has_many :authorizations
    has_many :captures
 
@@ -22,8 +22,8 @@ class CreditCard < ActiveRecord::Base
    end
 
 
-   def decrypt!(remote_salt)
-      @number = decrypt_number(remote_salt)
+   def decrypt!(passphrase)
+      @number = decrypt_number(passphrase)
       self
    end
 
@@ -47,6 +47,7 @@ class CreditCard < ActiveRecord::Base
       errors.add(:year, "is not a valid year") unless valid_expiry_year?(year.to_i)
       errors.add(:month, "is not a valid month") unless valid_month?(month.to_i)
       errors.add(:number, "is not a valid credit card number") unless valid_number?(number)
+      errors.add(:cvv, "must be provided") unless cvv
       self.card_type = type?(number)
       errors.add_to_base("We only accept Visa and MasterCard.") unless self.card_type == 'master' or self.card_type == 'visa'
    end
@@ -68,18 +69,18 @@ class CreditCard < ActiveRecord::Base
       c = cipher
       c.encrypt
       c.key = key 
-      c.iv = self.iv = generate_iv(remote_salt)
+      c.iv = self.iv = generate_iv(passphrase)
       temp_number = c.update(@number)
       temp_number << c.final
       self.crypted_number = encode_into_base64(temp_number) 
    end
 
    # Decrypts the credit card number
-   def decrypt_number(remote_salt)
+   def decrypt_number(passphrase)
       c = cipher
       c.decrypt
       c.key = key
-      c.iv = generate_iv(remote_salt)
+      c.iv = generate_iv(passphrase)
       d = c.update(decode_from_base64(self.crypted_number))
       d << c.final
    end
@@ -92,9 +93,9 @@ class CreditCard < ActiveRecord::Base
       Digest::SHA256.digest(@@CreditCardSecretKey)
    end
 
-   def generate_iv(remote_salt)
-      raise ArgumentError.new("be sure to set the remote_salt") if remote_salt.blank?
-      encode_into_base64(Digest::SHA1.hexdigest(remote_salt))
+   def generate_iv(passphrase)
+      raise ArgumentError.new("be sure to set the passphrase") if passphrase.blank?
+      encode_into_base64(Digest::SHA1.hexdigest(passphrase))
    end
 
    # Chomping is necessary for postgresql
@@ -111,7 +112,7 @@ class CreditCard < ActiveRecord::Base
    end
 
    def convert_number_to_string
-      @remote_salt = @remote_salt.to_s
+      @passphrase = @passphrase.to_s
       @number = @number.to_s
    end
 end

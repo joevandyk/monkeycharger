@@ -1,5 +1,5 @@
 class Authorization < ActiveRecord::Base
-  attr_accessor :remote_salt
+  attr_accessor :passphrase
 
   has_many    :refunds
   has_one     :capture
@@ -9,7 +9,7 @@ class Authorization < ActiveRecord::Base
   validate :authorize!
 
   validates_presence_of :transaction_id
-  validates_presence_of :remote_salt
+  validates_presence_of :passphrase
   validates_presence_of :last_four_digits
 
   
@@ -17,7 +17,7 @@ class Authorization < ActiveRecord::Base
     super(attributes)
     # Do an authorization on an existing credit card
     if credit_card_id = attributes[:credit_card_id]
-      self.credit_card = CreditCard.find(credit_card_id).decrypt!(attributes[:remote_salt])
+      self.credit_card = CreditCard.find(credit_card_id).decrypt!(attributes[:passphrase])
     else
     # Do an authorization on a credit card that isn't saved
       self.credit_card = CreditCard.new(:number => attributes[:number], :cvv => attributes[:cvv], :month => attributes[:month], :year => attributes[:year], :name => attributes[:name])

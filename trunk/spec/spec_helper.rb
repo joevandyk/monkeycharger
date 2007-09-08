@@ -27,7 +27,7 @@ end
 
 
 def generate_credit_card options={}
-   c = CreditCard.new({:remote_salt => '12345', :number => "4111111111111111", :month => Time.now.month, :year => Time.now.year, :name => "Joe Van Dyk", :cvv => 123, :street_address => '123 Main', :city => 'Albany', :state => 'OR', :zip => 12345, :country => 'U.S'}.merge(options))
+   c = CreditCard.new({:passphrase => '12345', :number => "4111111111111111", :month => Time.now.month, :year => Time.now.year, :name => "Joe Van Dyk", :cvv => 123, :street_address => '123 Main', :city => 'Albany', :state => 'OR', :zip => 12345, :country => 'U.S'}.merge(options))
    c.card_type = CreditCard::type?(c.number)
    c.save
    c

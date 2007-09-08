@@ -2,17 +2,17 @@ require "test/test_helper"
 
 class BigIntegrationTest < ActionController::IntegrationTest
    def test_the_happy_path
-      remote_salt = '12345'
+      passphrase = '12345'
 
       card = nil
       assert_difference "CreditCard.count" do
-         card = create_credit_card(:remote_salt => remote_salt)
+         card = create_credit_card(:passphrase => passphrase)
       end
       assert_response :created
 
       amount = (rand(1000) + 1).to_s
       assert_difference 'Authorization.count' do
-        authorize_existing_card(amount, card, remote_salt)
+        authorize_existing_card(amount, card, passphrase)
       end
       assert_response :created
       authorization = assigns(:authorization)
@@ -32,29 +32,29 @@ class BigIntegrationTest < ActionController::IntegrationTest
    end
 
    def test_cant_create_card_with_no_salt_supplied
-     card = create_credit_card(:remote_salt => '')
-     assert_equal card.errors.on(:remote_salt), "can't be blank"
-     card = create_credit_card(:remote_salt => nil)
-     assert_equal card.errors.on(:remote_salt), "can't be blank"
+     card = create_credit_card(:passphrase => '')
+     assert_equal card.errors.on(:passphrase), "can't be blank"
+     card = create_credit_card(:passphrase => nil)
+     assert_equal card.errors.on(:passphrase), "can't be blank"
    end
 
    def test_capturing_a_bad_amount_should_fail
-      remote_salt = '12345'
-      card = create_credit_card(:remote_salt => remote_salt)
+      passphrase = '12345'
+      card = create_credit_card(:passphrase => passphrase)
       amount = rand(1000).to_s
-      transaction_id = authorize_existing_card(amount, card, remote_salt)
+      transaction_id = authorize_existing_card(amount, card, passphrase)
       capture(amount.to_i + 1, transaction_id)  # trying to capture with an amount too high
       assert response.headers["X-CaptureSuccess"] != true
    end
 
-   def test_authorizing_with_bad_remote_salt_should_suck
+   def test_authorizing_with_bad_passphrase_should_suck
       amount = rand(1000).to_s
-      remote_salt = '12345'
-      bad_remote_salt = '54321'
-      card = create_credit_card(:remote_salt => remote_salt)
+      passphrase = '12345'
+      bad_passphrase = '54321'
+      card = create_credit_card(:passphrase => passphrase)
 
       assert_no_difference 'Authorization.count' do
-        authorize_existing_card(amount, card, bad_remote_salt)
+        authorize_existing_card(amount, card, bad_passphrase)
       end
    end
 
@@ -85,6 +85,7 @@ class BigIntegrationTest < ActionController::IntegrationTest
 
    def create_credit_card options={}
       card_values = { :number         => '4242424242424242', 
+                      :cvv            => '123',
                       :year           => Time.now.year + 1, 
                       :month          => Time.now.month, 
                       :name           => "Joe Van Dyk", 
@@ -93,14 +94,14 @@ class BigIntegrationTest < ActionController::IntegrationTest
                       :state          => "WA",
                       :zip            => "98115", 
                       :country        => "USA",
-                      :remote_salt     => 'blurb' }
+                      :passphrase     => 'blurb' }
       card_values.merge!(options)
       post credit_cards_url(:credit_card => card_values, :format => 'xml')
       assigns(:credit_card)
    end
 
-   def authorize_existing_card amount, card, remote_salt='blurb'
-      post authorizations_url(:authorization => { :amount => amount, :credit_card_id => card.id, :remote_salt => remote_salt })
+   def authorize_existing_card amount, card, passphrase='blurb'
+      post authorizations_url(:authorization => { :amount => amount, :credit_card_id => card.id, :passphrase => passphrase })
       assigns(:authorization)
    end
 
