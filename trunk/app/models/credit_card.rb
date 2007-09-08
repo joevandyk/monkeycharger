@@ -40,6 +40,7 @@ class CreditCard < ActiveRecord::Base
    # I forgot why I added this -- I'm sure there was a good reason.  Something to do with ActiveMerchant.
    alias verification_value? cvv
    alias verification_value verification_value?
+   alias verification_value= cvv=
 
    private
 
