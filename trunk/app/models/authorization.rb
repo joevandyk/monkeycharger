@@ -9,18 +9,26 @@ class Authorization < ActiveRecord::Base
   validate :authorize!
 
   validates_presence_of :transaction_id
-  validates_presence_of :passphrase
   validates_presence_of :last_four_digits
-
   
   def initialize attributes
     super(attributes)
     # Do an authorization on an existing credit card
     if credit_card_id = attributes[:credit_card_id]
       self.credit_card = CreditCard.find(credit_card_id).decrypt!(attributes[:passphrase])
+    end
+  end
+
+
+  alias_method :set_credit_card_association, :credit_card=
+
+  def credit_card= card
+    if card.is_a?(Hash)
+      card =  CreditCard.new(:number => card['number'], :cvv => card['cvv'], :month => card['month'], :year => card['year'], :name => card['name'])
+      set_credit_card_association card
+      self.last_four_digits = card.last_four_digits
     else
-    # Do an authorization on a credit card that isn't saved
-      self.credit_card = CreditCard.new(:number => attributes[:number], :cvv => attributes[:cvv], :month => attributes[:month], :year => attributes[:year], :name => attributes[:name])
+      set_credit_card_association card
     end
   end
 
@@ -32,8 +40,8 @@ class Authorization < ActiveRecord::Base
       self.transaction_id = response.authorization
       self.last_four_digits = self.credit_card.last_four_digits
     else
+      logger.info response.message
       errors.add_to_base(response.message)
-      return false
     end
   end
 end

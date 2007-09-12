@@ -21,6 +21,9 @@ class CreditCard < ActiveRecord::Base
       super(:only => [:last_four_digits, :name, :month, :year, :card_type, :id])
    end
 
+   def last_four_digits
+     save_last_four_digits
+   end
 
    def decrypt!(passphrase)
       @number = decrypt_number(passphrase)
