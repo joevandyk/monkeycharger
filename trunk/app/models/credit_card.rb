@@ -2,7 +2,7 @@ class CreditCard < ActiveRecord::Base
    include ActiveMerchant::Billing::CreditCardMethods
    include ActiveMerchant::Billing::CreditCardMethods::ClassMethods
 
-   attr_accessor :cvv, :number, :passphrase
+   attr_accessor :verification_value, :number, :passphrase
 
    validates_presence_of :name, :number, :street_address, :state, :zip, :country, :number, :city
 
@@ -17,12 +17,17 @@ class CreditCard < ActiveRecord::Base
    before_create :crypt_number
    before_create :save_last_four_digits
 
+   # Needed for authorize.net and active merchant
+   def verification_value?
+     verification_value
+   end
+
    def to_xml
       super(:only => [:last_four_digits, :name, :month, :year, :card_type, :id])
    end
 
    def last_four_digits
-     save_last_four_digits
+     new_record? ? save_last_four_digits : read_attribute(:last_four_digits)
    end
 
    def decrypt!(passphrase)
@@ -40,18 +45,13 @@ class CreditCard < ActiveRecord::Base
       name.split[1..-1].join(" ") if name
    end
 
-   # I forgot why I added this -- I'm sure there was a good reason.  Something to do with ActiveMerchant.
-   alias verification_value? cvv
-   alias verification_value verification_value?
-   alias verification_value= cvv=
-
    private
 
    def check_for_credit_card_validity
       errors.add(:year, "is not a valid year") unless valid_expiry_year?(year.to_i)
       errors.add(:month, "is not a valid month") unless valid_month?(month.to_i)
       errors.add(:number, "is not a valid credit card number") unless valid_number?(number)
-      errors.add(:cvv, "must be provided") unless cvv
+      errors.add(:verification_value, "must be provided") unless verification_value
       self.card_type = type?(number)
       errors.add_to_base("We only accept Visa and MasterCard.") unless self.card_type == 'master' or self.card_type == 'visa'
    end

@@ -3,6 +3,6 @@
 
 class ApplicationController < ActionController::Base
   helper :all # include all helpers, all the time
-  filter_parameter_logging :crypted_number, :passphrase, :cvv, :number, :iv
+  filter_parameter_logging :crypted_number, :passphrase, :verification_value, :number, :iv
   session :off
 end
