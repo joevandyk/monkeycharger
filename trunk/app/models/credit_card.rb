@@ -2,7 +2,7 @@ class CreditCard < ActiveRecord::Base
    include ActiveMerchant::Billing::CreditCardMethods
    include ActiveMerchant::Billing::CreditCardMethods::ClassMethods
 
-   attr_accessor :verification_value, :number, :passphrase
+   attr_accessor :number, :passphrase
 
    validates_presence_of :name, :number, :street_address, :state, :zip, :country, :number, :city
 
@@ -19,7 +19,7 @@ class CreditCard < ActiveRecord::Base
 
    # Needed for authorize.net and active merchant
    def verification_value?
-     verification_value
+     false
    end
 
    def to_xml
@@ -51,7 +51,6 @@ class CreditCard < ActiveRecord::Base
       errors.add(:year, "is not a valid year") unless valid_expiry_year?(year.to_i)
       errors.add(:month, "is not a valid month") unless valid_month?(month.to_i)
       errors.add(:number, "is not a valid credit card number") unless valid_number?(number)
-      errors.add(:verification_value, "must be provided") unless verification_value
       self.card_type = type?(number)
       errors.add_to_base("We only accept Visa and MasterCard.") unless self.card_type == 'master' or self.card_type == 'visa'
    end

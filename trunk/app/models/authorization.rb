@@ -24,7 +24,7 @@ class Authorization < ActiveRecord::Base
 
   def credit_card= card
     if card.is_a?(Hash)
-      card =  CreditCard.new(:number => card['number'], :verification_value => card['verification_value'], :month => card['month'], :year => card['year'], :name => card['name'])
+      card =  CreditCard.new(:number => card['number'], :month => card['month'], :year => card['year'], :name => card['name'])
       set_credit_card_association card
       self.last_four_digits = card.last_four_digits
     else

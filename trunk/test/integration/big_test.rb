@@ -97,7 +97,6 @@ class BigIntegrationTest < ActionController::IntegrationTest
 
    def valid_cc_attributes
       { :number         => '4242424242424242', 
-        :verification_value => '123',
         :year           => Time.now.year + 1, 
         :month          => Time.now.month, 
         :name           => "Joe Van Dyk", 
