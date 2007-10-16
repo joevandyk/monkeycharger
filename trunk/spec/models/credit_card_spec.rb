@@ -80,3 +80,15 @@ describe "We only take Visa and MasterCard" do
 end
 
 
+describe "Editing a saved credit card" do
+  before(:each) do
+    @card = generate_credit_card(:number => "4111111111111111")
+    @card.save!
+  end
+
+  it "should update the last four digits" do
+    @card.number = "4242424242424242"
+    @card.save!
+    @card.last_four_digits.should == "4242"
+  end 
+end

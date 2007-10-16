@@ -15,7 +15,7 @@ class CreditCard < ActiveRecord::Base
 
    before_validation :convert_number_to_string
    before_create :crypt_number
-   before_create :save_last_four_digits
+   before_save :save_last_four_digits
 
    # Needed for authorize.net and active merchant
    def verification_value?
