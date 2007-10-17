@@ -1,15 +1,4 @@
 class CreditCardsController < ApplicationController
-  # GET /credit_cards
-  # GET /credit_cards.xml
-  def index
-    @credit_cards = CreditCard.find(:all)
-
-    respond_to do |format|
-      format.html # index.html.erb
-      format.xml  { render :xml => @credit_cards }
-    end
-  end
-
   # GET /credit_cards/1
   # GET /credit_cards/1.xml
   def show

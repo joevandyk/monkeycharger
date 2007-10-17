@@ -35,7 +35,7 @@ class Authorization < ActiveRecord::Base
   private
 
   def authorize! 
-    response = $gateway.authorize(self.amount, self.credit_card)
+    response = $gateway.authorize(self.amount.to_cents, self.credit_card)
     if response.success?
       self.transaction_id = response.authorization
       self.last_four_digits = self.credit_card.last_four_digits

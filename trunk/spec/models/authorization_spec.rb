@@ -8,12 +8,12 @@ describe Authorizer, "a non-saved card" do
    end
 
    it "the gateway should receive the authorization" do
-      $gateway.should_receive(:authorize).with(@amt, @credit_card).and_return(successful_authorization)
+      $gateway.should_receive(:authorize).with(@amt.to_cents, @credit_card).and_return(successful_authorization)
       Authorization.create! :credit_card_id => @credit_card.id, :amount => @amt, :passphrase => @salt
    end
 
    it "shouldn't save on an unsuccessful authorization" do
-      $gateway.should_receive(:authorize).with(@amt, @credit_card).and_return(unsuccessful_authorization)
+      $gateway.should_receive(:authorize).with(@amt.to_cents, @credit_card).and_return(unsuccessful_authorization)
       auth = Authorization.new :credit_card_id => @credit_card.id, :amount => @amt, :passphrase => @salt
       auth.save.should_not be_true
    end

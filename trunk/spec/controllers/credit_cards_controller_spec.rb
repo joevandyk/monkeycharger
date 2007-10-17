@@ -28,69 +28,8 @@ describe CreditCardsController, "#route_for" do
   
 end
 
-describe CreditCardsController, "handling GET /credit_cards" do
-
-  before do
-    @credit_card = mock_model(CreditCard)
-    CreditCard.stub!(:find).and_return([@credit_card])
-  end
-  
-  def do_get
-    get :index
-  end
-  
-  it "should be successful" do
-    do_get
-    response.should be_success
-  end
-
-  it "should render index template" do
-    do_get
-    response.should render_template('index')
-  end
-  
-  it "should find all credit_cards" do
-    CreditCard.should_receive(:find).with(:all).and_return([@credit_card])
-    do_get
-  end
-  
-  it "should assign the found credit_cards for the view" do
-    do_get
-    assigns[:credit_cards].should == [@credit_card]
-  end
-end
-
-describe CreditCardsController, "handling GET /credit_cards.xml" do
-
-  before do
-    @credit_card = mock_model(CreditCard, :to_xml => "XML")
-    CreditCard.stub!(:find).and_return(@credit_card)
-  end
-  
-  def do_get
-    @request.env["HTTP_ACCEPT"] = "application/xml"
-    get :index
-  end
-  
-  it "should be successful" do
-    do_get
-    response.should be_success
-  end
-
-  it "should find all credit_cards" do
-    CreditCard.should_receive(:find).with(:all).and_return([@credit_card])
-    do_get
-  end
-  
-  it "should render the found credit_cards as xml" do
-    @credit_card.should_receive(:to_xml).and_return("XML")
-    do_get
-    response.body.should == "XML"
-  end
-end
 
 describe CreditCardsController, "handling GET /credit_cards/1" do
-
   before do
     @credit_card = mock_model(CreditCard)
     CreditCard.stub!(:find).and_return(@credit_card)
