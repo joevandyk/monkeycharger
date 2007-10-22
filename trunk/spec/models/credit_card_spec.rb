@@ -82,16 +82,20 @@ end
 
 describe "Editing a saved credit card" do
   before(:each) do
+    # Generate the original card
     @card = generate_credit_card(:number => "4111111111111111")
+    # Find and edit the number
+    @card = CreditCard.find @card.id
+    @card.number = "4242424242424242"
+    @card.passphrase = DEFAULT_TEST_PASS
     @card.save!
   end
 
   it "should update the last four digits" do
-    @card.number = "4242424242424242"
-    @card.save!
     @card.last_four_digits.should == "4242"
-    # Be sure the number was updated
-    @card = CreditCard.find @card.id
-    @card.decrypt!('12345').number.should == '4242424242424242'
+  end
+  
+  it "should update the number with th enew number" do
+    @card.number.should == '4242424242424242'
   end 
 end

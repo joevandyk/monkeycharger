@@ -26,8 +26,9 @@ Spec::Runner.configure do |config|
 end
 
 
+DEFAULT_TEST_PASS = '12345'
 def generate_credit_card options={}
-   c = CreditCard.new({:passphrase => '12345', :number => "4111111111111111", :month => Time.now.month, :year => Time.now.year, :name => "Joe Van Dyk", :street_address => '123 Main', :city => 'Albany', :state => 'OR', :zip => 12345, :country => 'U.S'}.merge(options))
+   c = CreditCard.new({:passphrase => DEFAULT_TEST_PASS, :number => "4111111111111111", :month => Time.now.month, :year => Time.now.year, :name => "Joe Van Dyk", :street_address => '123 Main', :city => 'Albany', :state => 'OR', :zip => 12345, :country => 'U.S'}.merge(options))
    c.card_type = CreditCard::type?(c.number)
    c.save
    c

@@ -80,6 +80,7 @@ class CreditCard < ActiveRecord::Base
 
    # Decrypts the credit card number
    def decrypt_number(passphrase)
+      @passphrase = passphrase
       c = cipher
       c.decrypt
       c.key = key
