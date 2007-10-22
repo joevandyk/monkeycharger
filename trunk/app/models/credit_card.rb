@@ -14,7 +14,7 @@ class CreditCard < ActiveRecord::Base
    has_many :captures
 
    before_validation :convert_number_to_string
-   before_create :crypt_number
+   before_save :crypt_number
    before_save :save_last_four_digits
 
    # Needed for authorize.net and active merchant

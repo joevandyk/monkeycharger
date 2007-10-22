@@ -90,5 +90,8 @@ describe "Editing a saved credit card" do
     @card.number = "4242424242424242"
     @card.save!
     @card.last_four_digits.should == "4242"
+    # Be sure the number was updated
+    @card = CreditCard.find @card.id
+    @card.decrypt!('12345').number.should == '4242424242424242'
   end 
 end
