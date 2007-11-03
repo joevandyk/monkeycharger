@@ -46,9 +46,8 @@ describe CreditCard do
       generate_credit_card(:year => past_month.year, :month => past_month.month).should_not be_valid
    end
 
-   it "should have two words in the name" do
-      generate_credit_card(:name => "Sam").errors.on(:name).should == "must be two words long."
-      generate_credit_card(:name => "Sam").should_not be_valid
+   it "should have at least one word in the name" do
+      generate_credit_card(:name => "Sam").should be_valid
    end
 
    it "should have two words in the last name if the name is three words long" do
@@ -57,6 +56,12 @@ describe CreditCard do
 
    it "should have one word in the first name if the name is three words long" do
       generate_credit_card(:name => "Sam Van Dyk").first_name.should == "Sam"
+   end
+
+   it "should have a blank last name if the name is one word long" do
+      card = generate_credit_card(:name => "Sam")
+      card.first_name.should == "Sam"
+      card.last_name.should be_blank
    end
 
 end
