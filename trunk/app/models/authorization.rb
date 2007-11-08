@@ -10,6 +10,8 @@ class Authorization < ActiveRecord::Base
 
   validates_presence_of :transaction_id
   validates_presence_of :last_four_digits
+
+  after_validation :remove_other_error_messages
   
   def initialize attributes
     super(attributes)
@@ -44,5 +46,15 @@ class Authorization < ActiveRecord::Base
       logger.info response.message
       errors.add_to_base(response.message)
     end
+  end
+
+  # There might be a better way to do this, but I don't want ActiveRecord
+  # adding error messages for when the transaction_id or last_four_digits
+  # is missing as a result of a failed authorization.  The only error 
+  # message should be from the credit card processor.
+  def remove_other_error_messages
+    base_error_msg = errors.on(:base)
+    errors.clear
+    errors.add_to_base(base_error_msg) if base_error_msg
   end
 end

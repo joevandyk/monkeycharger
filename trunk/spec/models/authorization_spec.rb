@@ -16,6 +16,8 @@ describe Authorizer, "a non-saved card" do
       $gateway.should_receive(:authorize).with(@amt.to_cents, @credit_card).and_return(unsuccessful_authorization)
       auth = Authorization.new :credit_card_id => @credit_card.id, :amount => @amt, :passphrase => @salt
       auth.save.should_not be_true
+
+      auth.errors.full_messages.should == ['reason why it failed']
    end
 
    private
