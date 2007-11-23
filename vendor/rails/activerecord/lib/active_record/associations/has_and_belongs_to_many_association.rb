@@ -8,20 +8,15 @@ module ActiveRecord
 
       def build(attributes = {})
         load_target
-        record = @reflection.klass.new(attributes)
-        @target << record
-        record
+        build_record(attributes)
       end
 
       def create(attributes = {})
-        # Can't use Base.create since the foreign key may be a protected attribute.
-        if attributes.is_a?(Array)
-          attributes.collect { |attr| create(attr) }
-        else
-          record = build(attributes)
-          insert_record(record) unless @owner.new_record?
-          record
-        end
+        create_record(attributes) { |record| insert_record(record) }
+      end
+      
+      def create!(attributes = {})
+        create_record(attributes) { |record| insert_record(record, true) }
       end
 
       def find_first
@@ -29,7 +24,7 @@ module ActiveRecord
       end
 
       def find(*args)
-        options = Base.send(:extract_options_from_args!, args)
+        options = args.extract_options!
 
         # If using a custom finder_sql, scan the entire collection.
         if @reflection.options[:finder_sql]
@@ -52,8 +47,7 @@ module ActiveRecord
 
           options[:conditions] = conditions
           options[:joins]      = @join_sql
-          options[:readonly]   = finding_with_ambigious_select?(options[:select])
-          options[:select]   ||= '*'
+          options[:readonly]   = finding_with_ambiguous_select?(options[:select])
 
           if options[:order] && @reflection.options[:order]
             options[:order] = "#{options[:order]}, #{@reflection.options[:order]}"
@@ -62,6 +56,8 @@ module ActiveRecord
           end
 
           merge_options_from_reflection!(options)
+
+          options[:select]   ||= '*'
 
           # Pass through args exactly as we received them.
           args << options
@@ -74,9 +70,13 @@ module ActiveRecord
           load_target.size
         end
 
-        def insert_record(record)
+        def insert_record(record, force=true)
           if record.new_record?
-            return false unless record.save
+            if force
+              record.save!
+            else
+              return false unless record.save
+            end
           end
 
           if @reflection.options[:insert_sql]
@@ -133,14 +133,31 @@ module ActiveRecord
         end
 
         def construct_scope
-          { :find => { :conditions => @finder_sql, :joins => @join_sql, :readonly => false } }
+          { :find => {  :conditions => @finder_sql,
+                        :joins => @join_sql,
+                        :readonly => false,
+                        :order => @reflection.options[:order],
+                        :limit => @reflection.options[:limit] } }
         end
 
-        # Join tables with additional columns on top of the two foreign keys must be considered ambigious unless a select
-        # clause has been explicitly defined. Otherwise you can get broken records back, if, say, the join column also has
-        # and id column, which will then overwrite the id column of the records coming back.
-        def finding_with_ambigious_select?(select_clause)
+        # Join tables with additional columns on top of the two foreign keys must be considered ambiguous unless a select
+        # clause has been explicitly defined. Otherwise you can get broken records back, if, for example, the join column also has
+        # an id column. This will then overwrite the id column of the records coming back.
+        def finding_with_ambiguous_select?(select_clause)
           !select_clause && @owner.connection.columns(@reflection.options[:join_table], "Join Table Columns").size != 2
+        end
+
+      private
+        def create_record(attributes)
+          # Can't use Base.create because the foreign key may be a protected attribute.
+          ensure_owner_is_not_new
+          if attributes.is_a?(Array)
+            attributes.collect { |attr| create(attr) }
+          else
+            record = build(attributes)
+            yield(record)
+            record
+          end
         end
     end
   end

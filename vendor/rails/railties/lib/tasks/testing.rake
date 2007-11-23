@@ -40,17 +40,15 @@ end
 
 desc 'Test all units and functionals'
 task :test do
-  exceptions = ["test:units", "test:functionals", "test:integration"].collect do |task|
+  errors = %w(test:units test:functionals test:integration).collect do |task|
     begin
       Rake::Task[task].invoke
       nil
     rescue => e
-      e
+      task
     end
   end.compact
-  
-  exceptions.each {|e| puts e;puts e.backtrace }
-  raise "Test failures" unless exceptions.empty?
+  abort "Errors running #{errors.to_sentence}!" if errors.any?
 end
 
 namespace :test do

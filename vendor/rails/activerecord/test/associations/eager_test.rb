@@ -103,6 +103,11 @@ class EagerAssociationTest < Test::Unit::TestCase
     assert_equal [2], posts.collect { |p| p.id }
   end
   
+  def test_eager_association_loading_with_explicit_join
+    posts = Post.find(:all, :include => :comments, :joins => "INNER JOIN authors ON posts.author_id = authors.id AND authors.name = 'Mary'", :limit => 1, :order => 'author_id')
+    assert_equal 1, posts.length
+  end
+  
   def test_eager_with_has_many_through
     posts_with_comments = people(:michael).posts.find(:all, :include => :comments)
     posts_with_author = people(:michael).posts.find(:all, :include => :author )
@@ -135,13 +140,21 @@ class EagerAssociationTest < Test::Unit::TestCase
   end
 
   def test_eager_with_has_many_and_limit_and_conditions
-    posts = Post.find(:all, :include => [ :author, :comments ], :limit => 2, :conditions => "posts.body = 'hello'", :order => "posts.id")
+    if current_adapter?(:OpenBaseAdapter)
+      posts = Post.find(:all, :include => [ :author, :comments ], :limit => 2, :conditions => "FETCHBLOB(posts.body) = 'hello'", :order => "posts.id")
+    else
+      posts = Post.find(:all, :include => [ :author, :comments ], :limit => 2, :conditions => "posts.body = 'hello'", :order => "posts.id")
+    end
     assert_equal 2, posts.size
     assert_equal [4,5], posts.collect { |p| p.id }
   end
 
   def test_eager_with_has_many_and_limit_and_conditions_array
-    posts = Post.find(:all, :include => [ :author, :comments ], :limit => 2, :conditions => [ "posts.body = ?", 'hello' ], :order => "posts.id")
+    if current_adapter?(:OpenBaseAdapter)
+      posts = Post.find(:all, :include => [ :author, :comments ], :limit => 2, :conditions => [ "FETCHBLOB(posts.body) = ?", 'hello' ], :order => "posts.id")
+    else
+      posts = Post.find(:all, :include => [ :author, :comments ], :limit => 2, :conditions => [ "posts.body = ?", 'hello' ], :order => "posts.id")
+    end
     assert_equal 2, posts.size
     assert_equal [4,5], posts.collect { |p| p.id }    
   end
@@ -167,6 +180,12 @@ class EagerAssociationTest < Test::Unit::TestCase
   def test_eager_with_has_many_and_limit_with_no_results
     posts = Post.find(:all, :include => [ :author, :comments ], :limit => 2, :conditions => "posts.title = 'magic forest'")
     assert_equal 0, posts.size
+  end
+  
+  def test_eager_count_performed_on_a_has_many_association_with_multi_table_conditional
+    author = authors(:david)
+    author_posts_without_comments = author.posts.select { |post| post.comments.blank? }
+    assert_equal author_posts_without_comments.size, author.posts.count(:all, :include => :comments, :conditions => 'comments.id is null')
   end
 
   def test_eager_with_has_and_belongs_to_many_and_limit
@@ -231,6 +250,15 @@ class EagerAssociationTest < Test::Unit::TestCase
       assert_equal count, posts.size
     end
   end
+
+  def test_eager_with_scoped_order_using_association_limiting_without_explicit_scope
+    posts_with_explicit_order = Post.find(:all, :conditions => 'comments.id is not null', :include => :comments, :order => 'posts.id DESC', :limit => 2)
+    posts_with_scoped_order = Post.with_scope(:find => {:order => 'posts.id DESC'}) do
+      Post.find(:all, :conditions => 'comments.id is not null', :include => :comments, :limit => 2)
+    end
+    assert_equal posts_with_explicit_order, posts_with_scoped_order
+  end
+
   def test_eager_association_loading_with_habtm
     posts = Post.find(:all, :include => :categories, :order => "posts.id")
     assert_equal 2, posts[0].categories.size
@@ -270,6 +298,13 @@ class EagerAssociationTest < Test::Unit::TestCase
             :conditions => ["companies.name = ?", "37signals"])
     assert_not_nil f.account
     assert_equal companies(:first_firm, :reload).account, f.account
+  end
+  
+  def test_eager_with_multi_table_conditional_properly_counts_the_records_when_using_size
+    author = authors(:david)
+    posts_with_no_comments = author.posts.select { |post| post.comments.blank? }
+    assert_equal posts_with_no_comments.size, author.posts_with_no_comments.size
+    assert_equal posts_with_no_comments, author.posts_with_no_comments
   end
 
   def test_eager_with_invalid_association_reference
@@ -386,6 +421,8 @@ class EagerAssociationTest < Test::Unit::TestCase
   def test_count_with_include
     if current_adapter?(:SQLServerAdapter, :SybaseAdapter)
       assert_equal 3, authors(:david).posts_with_comments.count(:conditions => "len(comments.body) > 15")
+    elsif current_adapter?(:OpenBaseAdapter)
+      assert_equal 3, authors(:david).posts_with_comments.count(:conditions => "length(FETCHBLOB(comments.body)) > 15")
     else
       assert_equal 3, authors(:david).posts_with_comments.count(:conditions => "length(comments.body) > 15")
     end

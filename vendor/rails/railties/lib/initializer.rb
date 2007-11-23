@@ -34,7 +34,7 @@ module Rails
 
     # The set of loaded plugins.
     attr_reader :loaded_plugins
-
+    
     # Runs the initializer. By default, this will invoke the #process method,
     # which simply executes all of the initialization routines. Alternately,
     # you can specify explicitly which initialization routine you want:
@@ -60,33 +60,34 @@ module Rails
     # Sequentially step through all of the available initialization routines,
     # in order:
     #
+    # * #check_ruby_version
     # * #set_load_path
     # * #require_frameworks
+    # * #set_autoload_paths
+    # * add_plugin_load_paths
     # * #load_environment
+    # * #initialize_encoding
     # * #initialize_database
     # * #initialize_logger
     # * #initialize_framework_logging
     # * #initialize_framework_views
     # * #initialize_dependency_mechanism
     # * #initialize_whiny_nils
+    # * #initialize_temporary_directories
     # * #initialize_framework_settings
-    # * #load_environment
+    # * #add_support_load_paths
     # * #load_plugins
     # * #load_observers
     # * #initialize_routing
     # * #after_initialize
     # * #load_application_initializers
-    #
-    # (Note that #load_environment is invoked twice, once at the start and
-    # once at the end, to support the legacy configuration style where the
-    # environment could overwrite the defaults directly, instead of via the
-    # Configuration instance.
     def process
       check_ruby_version
       set_load_path
-
+      
       require_frameworks
       set_autoload_paths
+      add_plugin_load_paths
       load_environment
 
       initialize_encoding
@@ -98,11 +99,6 @@ module Rails
       initialize_whiny_nils
       initialize_temporary_directories
       initialize_framework_settings
-
-      # Support for legacy configuration style where the environment
-      # could overwrite anything set from the defaults/global through
-      # the individual base class configurations.
-      load_environment
 
       add_support_load_paths
 
@@ -158,10 +154,19 @@ module Rails
     # ActionPack, ActionMailer, and ActiveResource) are loaded.
     def require_frameworks
       configuration.frameworks.each { |framework| require(framework.to_s) }
+    rescue LoadError => e
+      # re-raise because Mongrel would swallow it
+      raise e.to_s
     end
 
     # Add the load paths used by support functions such as the info controller
     def add_support_load_paths
+    end
+
+    # Adds all load paths from plugins to the global set of load paths, so that
+    # code from plugins can be required (explicitly or automatically via Dependencies).
+    def add_plugin_load_paths
+      plugin_loader.add_plugin_load_paths
     end
 
     # Loads all plugins in <tt>config.plugin_paths</tt>.  <tt>plugin_paths</tt>
@@ -169,26 +174,27 @@ module Rails
     # paths, such as
     #   config.plugin_paths = ["#{RAILS_ROOT}/lib/plugins", "#{RAILS_ROOT}/vendor/plugins"]
     #
-    # Each plugin discovered in <tt>plugin_paths</tt> is initialized:
-    # * add its +lib+ directory, if present, to the beginning of the load path
-    # * evaluate <tt>init.rb</tt> if present
+    # In the default implementation, as each plugin discovered in <tt>plugin_paths</tt> is initialized:
+    # * its +lib+ directory, if present, is added to the load path (immediately after the applications lib directory)
+    # * <tt>init.rb</tt> is evalutated, if present
     #
     # After all plugins are loaded, duplicates are removed from the load path.
     # If an array of plugin names is specified in config.plugins, only those plugins will be loaded
     # and they plugins will be loaded in that order. Otherwise, plugins are loaded in alphabetical
     # order.
+    #
+    # if config.plugins ends contains :all then the named plugins will be loaded in the given order and all other
+    # plugins will be loaded in alphabetical order
     def load_plugins
-      configuration.plugin_locators.each do |locator|
-        locator.new(self).each do |plugin|
-          plugin.load
-        end
-      end
-      ensure_all_registered_plugins_are_loaded!
-      $LOAD_PATH.uniq!
+      plugin_loader.load_plugins
+    end
+
+    def plugin_loader
+      @plugin_loader ||= configuration.plugin_loader.new(self)
     end
 
     # Loads the environment specified by Configuration#environment_path, which
-    # is typically one of development, testing, or production.
+    # is typically one of development, test, or production.
     def load_environment
       silence_warnings do
         return if @environment_loaded
@@ -243,11 +249,12 @@ module Rails
 
       unless logger = configuration.logger
         begin
-          logger = Logger.new(configuration.log_path)
-          logger.level = Logger.const_get(configuration.log_level.to_s.upcase)
-        rescue StandardError
-          logger = Logger.new(STDERR)
-          logger.level = Logger::WARN
+          logger = ActiveSupport::BufferedLogger.new(configuration.log_path)
+          logger.level = ActiveSupport::BufferedLogger.const_get(configuration.log_level.to_s.upcase)
+          logger.auto_flushing = false if configuration.environment == "production"
+        rescue StandardError =>e
+          logger = ActiveSupport::BufferedLogger.new(STDERR)
+          logger.level = ActiveSupport::BufferedLogger::WARN
           logger.warn(
             "Rails Error: Unable to access log file. Please ensure that #{configuration.log_path} exists and is chmod 0666. " +
             "The log level has been raised to WARN and the output directed to STDERR until the problem is fixed."
@@ -268,7 +275,7 @@ module Rails
       end
     end
 
-    # Sets +ActionController::BaseEview_paths+ and +ActionMailer::Base#template_root+
+    # Sets +ActionController::Base#view_paths+ and +ActionMailer::Base#template_root+
     # (but only for those frameworks that are to be loaded). If the framework's
     # paths have already been set, it is not changed, otherwise it is
     # set to use Configuration#view_path.
@@ -325,7 +332,9 @@ module Rails
 
     # Fires the user-supplied after_initialize block (Configuration#after_initialize)
     def after_initialize
-      configuration.after_initialize_block.call if configuration.after_initialize_block
+      configuration.after_initialize_blocks.each do |block|
+        block.call
+      end
     end
 
     def load_application_initializers
@@ -334,15 +343,6 @@ module Rails
       end
     end
 
-    private
-      def ensure_all_registered_plugins_are_loaded!
-        unless configuration.plugins.nil?
-          unless loaded_plugins == configuration.plugins
-            missing_plugins = configuration.plugins - loaded_plugins
-            raise LoadError, "Could not locate the following plugins: #{missing_plugins.to_sentence}"
-          end
-        end
-      end
   end
 
   # The Configuration class holds all the parameters for the Initializer and
@@ -424,7 +424,10 @@ module Rails
     # The list of plugins to load. If this is set to <tt>nil</tt>, all plugins will
     # be loaded. If this is set to <tt>[]</tt>, no plugins will be loaded. Otherwise,
     # plugins will be loaded in the order specified.
-    attr_accessor :plugins
+    attr_reader :plugins
+    def plugins=(plugins)
+      @plugins = plugins.nil? ? nil : plugins.map { |p| p.to_sym }
+    end
 
     # The path to the root of the plugins directory. By default, it is in
     # <tt>vendor/plugins</tt>.
@@ -515,16 +518,16 @@ module Rails
       ::RAILS_ENV
     end
 
-    # Sets a block which will be executed after rails has been fully initialized.
+    # Adds a block which will be executed after rails has been fully initialized.
     # Useful for per-environment configuration which depends on the framework being
     # fully initialized.
     def after_initialize(&after_initialize_block)
-      @after_initialize_block = after_initialize_block
+      after_initialize_blocks << after_initialize_block if after_initialize_block
     end
 
-    # Returns the block set in Configuration#after_initialize
-    def after_initialize_block
-      @after_initialize_block
+    # Returns the blocks added with Configuration#after_initialize
+    def after_initialize_blocks
+      @after_initialize_blocks ||= []
     end
 
     # Add a preparation callback that will run before every request in development
@@ -542,16 +545,14 @@ module Rails
     end
 
     def framework_paths
-      # TODO: Don't include dirs for frameworks that are not used
-      %w(
-        railties
-        railties/lib
-        actionpack/lib
-        activesupport/lib
-        activerecord/lib
-        activeresource/lib
-        actionmailer/lib
-      ).map { |dir| "#{framework_root_path}/#{dir}" }.select { |dir| File.directory?(dir) }
+      paths = %w(railties railties/lib activesupport/lib)
+      paths << 'actionpack/lib' if frameworks.include? :action_controller or frameworks.include? :action_view
+      
+      [:active_record, :action_mailer, :active_resource, :action_web_service].each do |framework|
+        paths << "#{framework.to_s.gsub('_', '')}/lib" if frameworks.include? framework
+      end
+      
+      paths.map { |dir| "#{framework_root_path}/#{dir}" }.select { |dir| File.directory?(dir) }
     end
 
     private

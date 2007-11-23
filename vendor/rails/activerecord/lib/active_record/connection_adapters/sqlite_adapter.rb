@@ -34,7 +34,7 @@ module ActiveRecord
 
           # Allow database path relative to RAILS_ROOT, but only if
           # the database path is not the special path that tells
-          # Sqlite build a database only in memory.
+          # Sqlite to build a database only in memory.
           if Object.const_defined?(:RAILS_ROOT) && ':memory:' != config[:database]
             config[:database] = File.expand_path(config[:database], RAILS_ROOT)
           end
@@ -132,39 +132,25 @@ module ActiveRecord
         catch_schema_changes { log(sql, name) { @connection.execute(sql) } }
       end
 
-      def update(sql, name = nil) #:nodoc:
-        execute(sql, name)
+      def update_sql(sql, name = nil) #:nodoc:
+        super
         @connection.changes
       end
 
-      def delete(sql, name = nil) #:nodoc:
+      def delete_sql(sql, name = nil) #:nodoc:
         sql += " WHERE 1=1" unless sql =~ /WHERE/i
-        execute(sql, name)
-        @connection.changes
+        super sql, name
       end
 
-      def insert(sql, name = nil, pk = nil, id_value = nil, sequence_name = nil) #:nodoc:
-        execute(sql, name = nil)
-        id_value || @connection.last_insert_row_id
+      def insert_sql(sql, name = nil, pk = nil, id_value = nil, sequence_name = nil) #:nodoc:
+        super || @connection.last_insert_row_id
       end
 
-      def select_all(sql, name = nil) #:nodoc:
+      def select_rows(sql, name = nil)
         execute(sql, name).map do |row|
-          record = {}
-          row.each_key do |key|
-            if key.is_a?(String)
-              record[key.sub(/^\w+\./, '')] = row[key]
-            end
-          end
-          record
+          (0...(row.size / 2)).map { |i| row[i] }
         end
       end
-
-      def select_one(sql, name = nil) #:nodoc:
-        result = select_all(sql, name)
-        result.nil? ? nil : result.first
-      end
-
 
       def begin_db_transaction #:nodoc:
         catch_schema_changes { @connection.transaction }
@@ -252,16 +238,32 @@ module ActiveRecord
             self.type    = type
             self.limit   = options[:limit] if options.include?(:limit)
             self.default = options[:default] if include_default
+            self.null    = options[:null] if options.include?(:null)
           end
         end
       end
 
       def rename_column(table_name, column_name, new_column_name) #:nodoc:
-        alter_table(table_name, :rename => {column_name => new_column_name})
+        alter_table(table_name, :rename => {column_name.to_s => new_column_name.to_s})
       end
 
+      def empty_insert_statement(table_name)
+        "INSERT INTO #{table_name} VALUES(NULL)"
+      end
 
       protected
+        def select(sql, name = nil) #:nodoc:
+          execute(sql, name).map do |row|
+            record = {}
+            row.each_key do |key|
+              if key.is_a?(String)
+                record[key.sub(/^\w+\./, '')] = row[key]
+              end
+            end
+            record
+          end
+        end
+
         def table_structure(table_name)
           returning structure = execute("PRAGMA table_info(#{table_name})") do
             raise(ActiveRecord::StatementInvalid, "Could not find table '#{table_name}'") if structure.empty?
@@ -285,18 +287,20 @@ module ActiveRecord
         end
 
         def copy_table(from, to, options = {}) #:nodoc:
-          create_table(to, options) do |@definition|
+          options = options.merge(:id => !columns(from).detect{|c| c.name == 'id'}.nil?)
+          create_table(to, options) do |definition|
+            @definition = definition
             columns(from).each do |column|
               column_name = options[:rename] ?
                 (options[:rename][column.name] ||
                  options[:rename][column.name.to_sym] ||
                  column.name) : column.name
-
+              
               @definition.column(column_name, column.type,
                 :limit => column.limit, :default => column.default,
                 :null => column.null)
             end
-            @definition.primary_key(primary_key(from))
+            @definition.primary_key(primary_key(from)) if primary_key(from)
             yield @definition if block_given?
           end
 

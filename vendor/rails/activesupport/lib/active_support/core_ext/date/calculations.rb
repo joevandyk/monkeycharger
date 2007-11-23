@@ -4,13 +4,15 @@ module ActiveSupport #:nodoc:
       # Enables the use of time calculations within Time itself
       module Calculations
         def self.included(base) #:nodoc:
-          base.send(:extend, ClassMethods)
-          
-          base.send(:alias_method, :plus_without_duration, :+)
-          base.send(:alias_method, :+, :plus_with_duration)
-          
-          base.send(:alias_method, :minus_without_duration, :-)
-          base.send(:alias_method, :-, :minus_with_duration)
+          base.extend ClassMethods
+
+          base.instance_eval do
+            alias_method :plus_without_duration, :+
+            alias_method :+, :plus_with_duration
+
+            alias_method :minus_without_duration, :-
+            alias_method :-, :minus_with_duration
+          end
         end
 
         module ClassMethods
@@ -66,11 +68,13 @@ module ActiveSupport #:nodoc:
         end
         
         # Provides precise Date calculations for years, months, and days.  The +options+ parameter takes a hash with 
-        # any of these keys: :months, :days, :years.
+        # any of these keys: :years, :months, :weeks, :days.
         def advance(options)
-          d = ::Date.new(year + (options.delete(:years) || 0), month, day)
-          d = d >> options.delete(:months) if options[:months]
-          d = d + options.delete(:days) if options[:days]
+          d = self
+          d = d >> options.delete(:years) * 12 if options[:years]
+          d = d >> options.delete(:months)     if options[:months]
+          d = d +  options.delete(:weeks) * 7  if options[:weeks]
+          d = d +  options.delete(:days)       if options[:days]
           d
         end
 
@@ -78,51 +82,34 @@ module ActiveSupport #:nodoc:
         #
         # Examples:
         #
-        #   Date.new(2007, 5, 12).change(:day => 1)                  # => Date.new(2007, 5, 12)
+        #   Date.new(2007, 5, 12).change(:day => 1)                  # => Date.new(2007, 5, 1)
         #   Date.new(2007, 5, 12).change(:year => 2005, :month => 1) # => Date.new(2005, 1, 12)
         def change(options)
           ::Date.new(
             options[:year]  || self.year,
             options[:month] || self.month,
-            options[:day]   || options[:mday] || self.day # mday is deprecated
+            options[:day]   || self.day
           )
         end
         
         # Returns a new Date/DateTime representing the time a number of specified months ago
         def months_ago(months)
-          months_since(-months)
+          advance(:months => -months)
         end
 
+        # Returns a new Date/DateTime representing the time a number of specified months in the future
         def months_since(months)
-          year, month, day = self.year, self.month, self.day
-
-          month += months
-
-          # in case months is negative
-          while month < 1
-           month += 12
-           year -= 1
-          end
-
-          # in case months is positive
-          while month > 12
-           month -= 12
-           year += 1
-          end
-
-          max = ::Time.days_in_month(month, year)
-          day = max if day > max
-
-          change(:year => year, :month => month, :day => day)
+          advance(:months => months)
         end
 
         # Returns a new Date/DateTime representing the time a number of specified years ago
         def years_ago(years)
-          change(:year => self.year - years)
+          advance(:years => -years)
         end
 
+        # Returns a new Date/DateTime representing the time a number of specified years in the future
         def years_since(years)
-          change(:year => self.year + years)
+          advance(:years => years)
         end
 
         # Short-hand for years_ago(1)

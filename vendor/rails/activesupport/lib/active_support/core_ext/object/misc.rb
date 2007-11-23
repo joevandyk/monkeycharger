@@ -1,4 +1,9 @@
 class Object
+  unless respond_to?(:send!)
+    # Anticipating Ruby 1.9 neutering send
+    alias send! send
+  end
+
   # A Ruby-ized realization of the K combinator, courtesy of Mikael Brockman.
   #
   #   def foo
@@ -32,7 +37,7 @@ class Object
   #     post.has_many :all_comments
   #   end
   #
-  # Can also be used with an explicit reciever:
+  # Can also be used with an explicit receiver:
   #
   #   map.with_options :controller => "people" do |people|
   #     people.connect "/people",     :action => "index"

@@ -109,7 +109,8 @@ CREATE TABLE defaults (
     char3 text default 'a text field',
     positive_integer integer default 1,
     negative_integer integer default -1,
-    decimal_number decimal(3,2) default 2.78
+    decimal_number decimal(3,2) default 2.78,
+    multiline_default text DEFAULT E'--- []\n\n'::text
 );
 
 CREATE TABLE auto_id_tests (
@@ -244,4 +245,48 @@ CREATE TABLE numeric_data (
 CREATE TABLE mixed_case_monkeys (
  "monkeyID" INTEGER PRIMARY KEY,
  "fleaCount" INTEGER
+);
+
+CREATE TABLE postgresql_arrays (
+  id SERIAL PRIMARY KEY,
+  commission_by_quarter INTEGER[],
+  nicknames TEXT[]
+);
+
+CREATE TABLE postgresql_moneys (
+  id SERIAL PRIMARY KEY,
+  wealth MONEY
+);
+
+CREATE TABLE postgresql_numbers (
+  id SERIAL PRIMARY KEY,
+  single REAL,
+  double DOUBLE PRECISION
+);
+
+CREATE TABLE postgresql_times (
+  id SERIAL PRIMARY KEY,
+  time_interval INTERVAL
+);
+
+CREATE TABLE postgresql_network_addresses (
+  id SERIAL PRIMARY KEY,
+  cidr_address CIDR,
+  inet_address INET,
+  mac_address MACADDR
+);
+
+CREATE TABLE postgresql_bit_strings (
+  id SERIAL PRIMARY KEY,
+  bit_string BIT(8),
+  bit_string_varying BIT VARYING(8)
+);
+
+CREATE TABLE postgresql_oids (
+  id SERIAL PRIMARY KEY,
+  obj_id OID
+);
+
+CREATE TABLE minimalistics (
+  id serial primary key
 );

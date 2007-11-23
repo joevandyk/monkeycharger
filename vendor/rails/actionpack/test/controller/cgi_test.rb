@@ -47,6 +47,29 @@ class CgiRequestTest < BaseCgiTest
     assert_equal "207.7.108.53:8007", @request.host_with_port
   end
 
+  def test_host_with_port_if_http_standard_port_is_specified
+    @request_hash['HTTP_X_FORWARDED_HOST'] = "glu.ttono.us:80"
+    assert_equal "glu.ttono.us", @request.host_with_port
+  end
+
+  def test_host_with_port_if_https_standard_port_is_specified
+    @request_hash['HTTP_X_FORWARDED_PROTO'] = "https"
+    @request_hash['HTTP_X_FORWARDED_HOST'] = "glu.ttono.us:443"
+    assert_equal "glu.ttono.us", @request.host_with_port
+  end
+
+  def test_host_if_ipv6_reference
+    @request_hash.delete "HTTP_X_FORWARDED_HOST"
+    @request_hash['HTTP_HOST'] = "[2001:1234:5678:9abc:def0::dead:beef]"
+    assert_equal "[2001:1234:5678:9abc:def0::dead:beef]", @request.host
+  end
+
+  def test_host_if_ipv6_reference_with_port
+    @request_hash.delete "HTTP_X_FORWARDED_HOST"
+    @request_hash['HTTP_HOST'] = "[2001:1234:5678:9abc:def0::dead:beef]:8008"
+    assert_equal "[2001:1234:5678:9abc:def0::dead:beef]", @request.host
+  end
+
   def test_cookie_syntax_resilience
     cookies = CGI::Cookie::parse(@request_hash["HTTP_COOKIE"]);
     assert_equal ["c84ace84796670c052c6ceb2451fb0f2"], cookies["_session_id"]

@@ -50,27 +50,27 @@ class SessionTest < Test::Unit::TestCase
   end
 
   def test_get_via_redirect
-    path = "/somepath"; args = {:id => '1'}
+    path = "/somepath"; args = {:id => '1'}; headers = {"X-Test-Header" => "testvalue" }
 
-    @session.expects(:get).with(path,args)
+    @session.expects(:get).with(path,args,headers)
 
     @session.stubs(:redirect?).returns(true, true, false)
     @session.expects(:follow_redirect!).times(2)
 
     @session.stubs(:status).returns(200)
-    assert_equal 200, @session.get_via_redirect(path, args)
+    assert_equal 200, @session.get_via_redirect(path, args, headers)
   end
 
   def test_post_via_redirect
-    path = "/somepath"; args = {:id => '1'}
+    path = "/somepath"; args = {:id => '1'}; headers = {"X-Test-Header" => "testvalue" }
 
-    @session.expects(:post).with(path,args)
+    @session.expects(:post).with(path,args,headers)
 
     @session.stubs(:redirect?).returns(true, true, false)
     @session.expects(:follow_redirect!).times(2)
 
     @session.stubs(:status).returns(200)
-    assert_equal 200, @session.post_via_redirect(path, args)
+    assert_equal 200, @session.post_via_redirect(path, args, headers)
   end
 
   def test_url_for_with_controller
@@ -128,16 +128,6 @@ class SessionTest < Test::Unit::TestCase
     path = "/index"; params = "blah"; headers = {:location => 'blah'}
     @session.expects(:process).with(:head,path,params,headers)
     @session.head(path,params,headers)
-  end
-
-  def test_xml_http_request_deprecated_call
-    path = "/index"; params = "blah"; headers = {:location => 'blah'}
-    headers_after_xhr = headers.merge(
-      "X-Requested-With" => "XMLHttpRequest",
-      "Accept"           => "text/javascript, text/html, application/xml, text/xml, */*"
-    )
-    @session.expects(:process).with(:post,path,params,headers_after_xhr)
-    assert_deprecated { @session.xml_http_request(path,params,headers) }
   end
 
   def test_xml_http_request_get
@@ -222,7 +212,7 @@ class IntegrationTestUsesCorrectClass < ActionController::IntegrationTest
 
   def test_integration_methods_called
     %w( get post head put delete ).each do |verb|
-      assert_nothing_raised("'#{verb}' should use integration test methods") { send(verb, '/') }
+      assert_nothing_raised("'#{verb}' should use integration test methods") { send!(verb, '/') }
     end
   end
 

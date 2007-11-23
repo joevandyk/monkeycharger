@@ -7,7 +7,7 @@ module ActionView
     # and transforming strings, which can reduce the amount of inline Ruby code in 
     # your views. These helper methods extend ActionView making them callable 
     # within your template files.
-    module TextHelper      
+    module TextHelper  
       # The preferred method of outputting text in your views is to use the 
       # <%= "text" %> eRuby syntax. The regular _puts_ and _print_ methods 
       # do not operate as expected in an eRuby code block. If you absolutely must 
@@ -30,7 +30,7 @@ module ActionView
       end
 
       # If +text+ is longer than +length+, +text+ will be truncated to the length of 
-      # +length+ (defaults to 30) and the last three characters will be replaced with the +truncate_string+
+      # +length+ (defaults to 30) and the last characters will be replaced with the +truncate_string+
       # (defaults to "...").
       #
       # ==== Examples
@@ -78,7 +78,7 @@ module ActionView
       end
 
       # Extracts an excerpt from +text+ that matches the first instance of +phrase+. 
-      # The +radius+ expands the excerpt on each side of the first occurance of +phrase+ by the number of characters
+      # The +radius+ expands the excerpt on each side of the first occurrence of +phrase+ by the number of characters
       # defined in +radius+ (which defaults to 100). If the excerpt radius overflows the beginning or end of the +text+,
       # then the +excerpt_string+ will be prepended/appended accordingly. If the +phrase+ 
       # isn't found, nil is returned.
@@ -161,7 +161,9 @@ module ActionView
       #   word_wrap('Once upon a time', 1)
       #   # => Once\nupon\na\ntime
       def word_wrap(text, line_width = 80)
-        text.gsub(/\n/, "\n\n").gsub(/(.{1,#{line_width}})(\s+|$)/, "\\1\n").strip
+        text.split("\n").collect do |line|
+          line.length > line_width ? line.gsub(/(.{1,#{line_width}})(\s+|$)/, "\\1\n").strip : line
+        end * "\n"
       end
 
       begin
@@ -305,110 +307,10 @@ module ActionView
       def auto_link(text, link = :all, href_options = {}, &block)
         return '' if text.blank?
         case link
-          when :all             then auto_link_urls(auto_link_email_addresses(text, &block), href_options, &block)
+          when :all             then auto_link_email_addresses(auto_link_urls(text, href_options, &block), &block)
           when :email_addresses then auto_link_email_addresses(text, &block)
           when :urls            then auto_link_urls(text, href_options, &block)
         end
-      end
-
-      # Strips all link tags from +text+ leaving just the link text.
-      #
-      # ==== Examples
-      #   strip_links('<a href="http://www.rubyonrails.org">Ruby on Rails</a>')
-      #   # => Ruby on Rails
-      #
-      #   strip_links('Please e-mail me at <a href="mailto:me@email.com">me@email.com</a>.')
-      #   # => Please e-mail me at me@email.com.
-      #
-      #   strip_links('Blog: <a href="http://www.myblog.com/" class="nav" target=\"_blank\">Visit</a>.')
-      #   # => Blog: Visit
-      def strip_links(text)
-        text.gsub(/<a\b.*?>(.*?)<\/a>/mi, '\1')
-      end
-
-      VERBOTEN_TAGS = %w(form script plaintext) unless defined?(VERBOTEN_TAGS)
-      VERBOTEN_ATTRS = /^on/i unless defined?(VERBOTEN_ATTRS)
-
-      # Sanitizes the +html+ by converting <form> and <script> tags into regular
-      # text, and removing all "on*" (e.g., onClick) attributes so that arbitrary Javascript
-      # cannot be executed. It also removes <tt>href</tt> and <tt>src</tt> attributes that start with
-      # "javascript:". You can modify what gets sanitized by defining VERBOTEN_TAGS
-      # and VERBOTEN_ATTRS before this Module is loaded.
-      #
-      # ==== Examples
-      #   sanitize('<script> do_nasty_stuff() </script>')
-      #   # => &lt;script> do_nasty_stuff() &lt;/script>
-      #
-      #   sanitize('<a href="javascript: sucker();">Click here for $100</a>')
-      #   # => <a>Click here for $100</a>
-      #
-      #   sanitize('<a href="#" onClick="kill_all_humans();">Click here!!!</a>')
-      #   # => <a href="#">Click here!!!</a>
-      #
-      #   sanitize('<img src="javascript:suckers_run_this();" />')
-      #   # => <img />
-      def sanitize(html)
-        # only do this if absolutely necessary
-        if html.index("<")
-          tokenizer = HTML::Tokenizer.new(html)
-          new_text = ""
-
-          while token = tokenizer.next
-            node = HTML::Node.parse(nil, 0, 0, token, false)
-            new_text << case node
-              when HTML::Tag
-                if VERBOTEN_TAGS.include?(node.name)
-                  node.to_s.gsub(/</, "&lt;")
-                else
-                  if node.closing != :close
-                    node.attributes.delete_if { |attr,v| attr =~ VERBOTEN_ATTRS }
-                    %w(href src).each do |attr|
-                      node.attributes.delete attr if node.attributes[attr] =~ /^javascript:/i
-                    end
-                  end
-                  node.to_s
-                end
-              else
-                node.to_s.gsub(/</, "&lt;")
-            end
-          end
-
-          html = new_text
-        end
-
-        html
-      end
-      
-      # Strips all HTML tags from the +html+, including comments.  This uses the 
-      # html-scanner tokenizer and so its HTML parsing ability is limited by 
-      # that of html-scanner.
-      #
-      # ==== Examples
-      #   strip_tags("Strip <i>these</i> tags!")
-      #   # => Strip these tags!
-      #
-      #   strip_tags("<b>Bold</b> no more!  <a href='more.html'>See more here</a>...")
-      #   # => Bold no more!  See more here...
-      # 
-      #   strip_tags("<div id='top-bar'>Welcome to my website!</div>")
-      #   # => Welcome to my website!
-      def strip_tags(html)     
-        return html if html.blank?
-        if html.index("<")
-          text = ""
-          tokenizer = HTML::Tokenizer.new(html)
-
-          while token = tokenizer.next
-            node = HTML::Node.parse(nil, 0, 0, token, false)
-            # result is only the content of any Text nodes
-            text << node.to_s if node.class == HTML::Text  
-          end
-          # strip any comments, and if they have a newline at the end (ie. line with
-          # only a comment) strip that too
-          text.gsub(/<!--(.*?)-->[\n]?/m, "") 
-        else
-          html # already plain text
-        end 
       end
       
       # Creates a Cycle object whose _to_s_ method cycles through elements of an
@@ -435,10 +337,10 @@ module ActionView
       #                {:first => 'Emily', :middle => 'Shannon', :maiden => 'Pike', :last => 'Hicks'}, 
       #               {:first => 'June', :middle => 'Dae', :last => 'Jones'}]
       #   <% @items.each do |item| %>
-      #     <tr class="<%= cycle("even", "odd", :name => "row_class")
+      #     <tr class="<%= cycle("even", "odd", :name => "row_class") -%>">
       #       <td>
       #         <% item.values.each do |value| %>
-      #           <!-- Create a named cycle "colors" -->
+      #           <%# Create a named cycle "colors" %>
       #           <span style="color:<%= cycle("red", "green", "blue", :name => "colors") -%>">
       #             <%= value %>
       #           </span>
@@ -505,7 +407,7 @@ module ActionView
           return value
         end
       end
-      
+
       private
         # The cycle helpers need to store the cycles in a place that is
         # guaranteed to be reset every time a page is rendered, so it
@@ -534,8 +436,8 @@ module ActionView
                           [-\w]+                   # subdomain or domain
                           (?:\.[-\w]+)*            # remaining subdomains or domain
                           (?::\d+)?                # port
-                          (?:/(?:(?:[~\w\+%-]|(?:[,.;:][^\s$]))+)?)* # path
-                          (?:\?[\w\+%&=.;-]+)?     # query string
+                          (?:/(?:(?:[~\w\+@%-]|(?:[,.;:][^\s$]))+)?)* # path
+                          (?:\?[\w\+@%&=.;-]+)?     # query string
                           (?:\#[\w\-]*)?           # trailing anchor
                         )
                         ([[:punct:]]|\s|<|$)       # trailing text
@@ -560,10 +462,16 @@ module ActionView
         # Turns all email addresses into clickable links.  If a block is given,
         # each email is yielded and the result is used as the link text.
         def auto_link_email_addresses(text)
+          body = text.dup
           text.gsub(/([\w\.!#\$%\-+.]+@[A-Za-z0-9\-]+(\.[A-Za-z0-9\-]+)+)/) do
             text = $1
-            text = yield(text) if block_given?
-            %{<a href="mailto:#{$1}">#{text}</a>}
+            
+            if body.match(/<a\b[^>]*>(.*)(#{Regexp.escape(text)})(.*)<\/a>/)
+              text
+            else
+              display_text = (block_given?) ? yield(text) : text
+              %{<a href="mailto:#{text}">#{display_text}</a>}
+            end
           end
         end
     end

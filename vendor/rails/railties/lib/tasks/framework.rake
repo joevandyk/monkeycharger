@@ -2,13 +2,13 @@ namespace :rails do
   namespace :freeze do
     desc "Lock this application to the current gems (by unpacking them into vendor/rails)"
     task :gems do
-      deps = %w(actionpack activerecord actionmailer activesupport actionwebservice)
+      deps = %w(actionpack activerecord actionmailer activesupport activeresource)
       require 'rubygems'
       Gem.manage_gems
 
       rails = (version = ENV['VERSION']) ?
-        Gem.cache.search('rails', "= #{version}").first :
-        Gem.cache.search('rails').sort_by { |g| g.version }.last
+        Gem.cache.find_name('rails', "= #{version}").first :
+        Gem.cache.find_name('rails').sort_by { |g| g.version }.last
 
       version ||= rails.version
 

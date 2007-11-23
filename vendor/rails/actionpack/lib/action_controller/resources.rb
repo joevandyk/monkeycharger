@@ -28,10 +28,10 @@ module ActionController
   #   GET /posts/1
   #
   #   # A POST request on the Posts resource is asking for a Post to be created with the supplied details
-  #   POST /posts # with => { :title => "My Whizzy New Post", :body => "I've got a brand new combine harvester" }
+  #   POST /posts # with => { :post => { :title => "My Whizzy New Post", :body => "I've got a brand new combine harvester" } }
   #
   #   # A PUT request on a single Post resource is asking for a Post to be updated
-  #   PUT /posts # with => { :id => 1, :title => "Changed Whizzy Title" }
+  #   PUT /posts # with => { :id => 1, :post => { :title => "Changed Whizzy Title" } }
   #
   #   # A DELETE request on a single Post resource is asking for it to be deleted
   #   DELETE /posts # with => { :id => 1 }
@@ -70,6 +70,10 @@ module ActionController
         with_id ? @requirements.merge(@id_requirement) : @requirements
       end
 
+      def conditions
+        @conditions = @options[:conditions] || {}
+      end
+
       def path
         @path ||= "#{path_prefix}/#{plural}"
       end
@@ -90,6 +94,13 @@ module ActionController
         "#{name_prefix}#{singular}_"
       end
 
+      def action_separator
+        @action_separator ||= Base.resource_action_separator
+      end
+
+      def uncountable?
+        @singular.to_s == @plural.to_s
+      end
 
       protected
         def arrange_actions
@@ -215,8 +226,7 @@ module ActionController
     #
     #   <% form_for :message, @message, :url => message_path(@message), :html => {:method => :put} do |f| %>
     #
-    # The #resources method accepts the following options to customize the resulting
-    # routes:
+    # The #resources method accepts the following options to customize the resulting routes:
     # * <tt>:collection</tt> - add named routes for other actions that operate on the collection.
     #   Takes a hash of <tt>#{action} => #{method}</tt>, where method is <tt>:get</tt>/<tt>:post</tt>/<tt>:put</tt>/<tt>:delete</tt>
     #   or <tt>:any</tt> if the method does not matter.  These routes map to a URL like /messages/rss, with a route of rss_messages_url.
@@ -224,7 +234,10 @@ module ActionController
     # * <tt>:new</tt> - same as :collection, but for actions that operate on the new resource action.
     # * <tt>:controller</tt> - specify the controller name for the routes.
     # * <tt>:singular</tt> - specify the singular name used in the member routes.
+    # * <tt>:requirements</tt> - set custom routing parameter requirements.
+    # * <tt>:conditions</tt> - specify custom routing recognition conditions.  Resources sets the :method value for the method-specific routes.
     # * <tt>:path_prefix</tt> - set a prefix to the routes with required route variables.
+    #
     #   Weblog comments usually belong to a post, so you might use resources like:
     #
     #     map.resources :articles
@@ -295,7 +308,7 @@ module ActionController
     # HTTP POST on <tt>new_message_url</tt> will raise a RoutingError exception. The default route in
     # <tt>config/routes.rb</tt> overrides this and allows invalid HTTP methods for resource routes.
     def resources(*entities, &block)
-      options = entities.last.is_a?(Hash) ? entities.pop : { }
+      options = entities.extract_options!
       entities.each { |entity| map_resource(entity, options.dup, &block) }
     end
 
@@ -369,7 +382,7 @@ module ActionController
     #   edit_account  edit_account_url, hash_for_edit_account_url,
     #                 edit_account_path, hash_for_edit_account_path
     def resource(*entities, &block)
-      options = entities.last.is_a?(Hash) ? entities.pop : { }
+      options = entities.extract_options!
       entities.each { |entity| map_singleton_resource(entity, options.dup, &block) }
     end
 
@@ -386,7 +399,7 @@ module ActionController
           map_associations(resource, options)
 
           if block_given?
-            with_options(:path_prefix => resource.nesting_path_prefix, :name_prefix => resource.nesting_name_prefix, &block)
+            with_options(:path_prefix => resource.nesting_path_prefix, :name_prefix => resource.nesting_name_prefix, :namespace => options[:namespace], &block)
           end
         end
       end
@@ -403,7 +416,7 @@ module ActionController
           map_associations(resource, options)
 
           if block_given?
-            with_options(:path_prefix => resource.nesting_path_prefix, :name_prefix => resource.nesting_name_prefix, &block)
+            with_options(:path_prefix => resource.nesting_path_prefix, :name_prefix => resource.nesting_name_prefix, :namespace => options[:namespace], &block)
           end
         end
       end
@@ -411,14 +424,13 @@ module ActionController
       def map_associations(resource, options)
         path_prefix = "#{options.delete(:path_prefix)}#{resource.nesting_path_prefix}"
         name_prefix = "#{options.delete(:name_prefix)}#{resource.nesting_name_prefix}"
-        namespace = options.delete(:namespace)
 
         Array(options[:has_many]).each do |association|
-          resources(association, :path_prefix => path_prefix, :name_prefix => name_prefix, :namespace => namespace)
+          resources(association, :path_prefix => path_prefix, :name_prefix => name_prefix, :namespace => options[:namespace])
         end
 
         Array(options[:has_one]).each do |association|
-          resource(association, :path_prefix => path_prefix, :name_prefix => name_prefix, :namespace => namespace)
+          resource(association, :path_prefix => path_prefix, :name_prefix => name_prefix, :namespace => options[:namespace])
         end
       end
 
@@ -426,18 +438,22 @@ module ActionController
         resource.collection_methods.each do |method, actions|
           actions.each do |action|
             action_options = action_options_for(action, resource, method)
-
-            # See http://dev.rubyonrails.org/ticket/8251
-            map.deprecated_named_route("#{action}_#{resource.name_prefix}#{resource.plural}", "#{resource.name_prefix}#{action}_#{resource.plural}", "#{resource.path}/#{action}", action_options)
-            map.deprecated_named_route("formatted_#{action}_#{resource.name_prefix}#{resource.plural}", "formatted_#{resource.name_prefix}#{action}_#{resource.plural}", "#{resource.path}/#{action}.:format", action_options)
+            map.named_route("#{action}_#{resource.name_prefix}#{resource.plural}", "#{resource.path}#{resource.action_separator}#{action}", action_options)
+            map.named_route("formatted_#{action}_#{resource.name_prefix}#{resource.plural}", "#{resource.path}#{resource.action_separator}#{action}.:format", action_options)
           end
         end
       end
 
       def map_default_collection_actions(map, resource)
         index_action_options = action_options_for("index", resource)
-        map.named_route("#{resource.name_prefix}#{resource.plural}", resource.path, index_action_options)
-        map.named_route("formatted_#{resource.name_prefix}#{resource.plural}", "#{resource.path}.:format", index_action_options)
+        index_route_name = "#{resource.name_prefix}#{resource.plural}"
+
+        if resource.uncountable?
+          index_route_name << "_index"
+        end
+
+        map.named_route(index_route_name, resource.path, index_action_options)
+        map.named_route("formatted_#{index_route_name}", "#{resource.path}.:format", index_action_options)
 
         create_action_options = action_options_for("create", resource)
         map.connect(resource.path, create_action_options)
@@ -455,13 +471,11 @@ module ActionController
           actions.each do |action|
             action_options = action_options_for(action, resource, method)
             if action == :new
-              # See http://dev.rubyonrails.org/ticket/8251
-              map.deprecated_named_route("new_#{resource.name_prefix}#{resource.singular}", "#{resource.name_prefix}new_#{resource.singular}", resource.new_path, action_options)
-              map.deprecated_named_route("formatted_new_#{resource.name_prefix}#{resource.singular}", "formatted_#{resource.name_prefix}new_#{resource.singular}", "#{resource.new_path}.:format", action_options)
+              map.named_route("new_#{resource.name_prefix}#{resource.singular}", resource.new_path, action_options)
+              map.named_route("formatted_new_#{resource.name_prefix}#{resource.singular}", "#{resource.new_path}.:format", action_options)
             else
-              # See http://dev.rubyonrails.org/ticket/8251
-              map.deprecated_named_route("#{action}_new_#{resource.name_prefix}#{resource.singular}", "#{resource.name_prefix}#{action}_new_#{resource.singular}", "#{resource.new_path}/#{action}", action_options)
-              map.deprecated_named_route("formatted_#{action}_new_#{resource.name_prefix}#{resource.singular}", "formatted_#{resource.name_prefix}#{action}_new_#{resource.singular}", "#{resource.new_path}/#{action}.:format", action_options)
+              map.named_route("#{action}_new_#{resource.name_prefix}#{resource.singular}", "#{resource.new_path}#{resource.action_separator}#{action}", action_options)
+              map.named_route("formatted_#{action}_new_#{resource.name_prefix}#{resource.singular}", "#{resource.new_path}#{resource.action_separator}#{action}.:format", action_options)
             end
           end
         end
@@ -471,9 +485,8 @@ module ActionController
         resource.member_methods.each do |method, actions|
           actions.each do |action|
             action_options = action_options_for(action, resource, method)
-            # See http://dev.rubyonrails.org/ticket/8251
-            map.deprecated_named_route("#{action}_#{resource.name_prefix}#{resource.singular}", "#{resource.name_prefix}#{action}_#{resource.singular}", "#{resource.member_path}/#{action}", action_options)
-            map.deprecated_named_route("formatted_#{action}_#{resource.name_prefix}#{resource.singular}", "formatted_#{resource.name_prefix}#{action}_#{resource.singular}", "#{resource.member_path}/#{action}.:format",action_options)
+            map.named_route("#{action}_#{resource.name_prefix}#{resource.singular}", "#{resource.member_path}#{resource.action_separator}#{action}", action_options)
+            map.named_route("formatted_#{action}_#{resource.name_prefix}#{resource.singular}", "#{resource.member_path}#{resource.action_separator}#{action}.:format",action_options)
           end
         end
 
@@ -490,23 +503,27 @@ module ActionController
         map.connect("#{resource.member_path}.:format", destroy_action_options)
       end
 
-      def conditions_for(method)
-        { :conditions => method == :any ? {} : { :method => method } }
+      def add_conditions_for(conditions, method)
+        returning({:conditions => conditions.dup}) do |options|
+          options[:conditions][:method] = method unless method == :any
+        end
       end
 
       def action_options_for(action, resource, method = nil)
         default_options = { :action => action.to_s }
         require_id = !resource.kind_of?(SingletonResource)
         case default_options[:action]
-          when "index", "new" : default_options.merge(conditions_for(method || :get)).merge(resource.requirements)
-          when "create"       : default_options.merge(conditions_for(method || :post)).merge(resource.requirements)
-          when "show", "edit" : default_options.merge(conditions_for(method || :get)).merge(resource.requirements(require_id))
-          when "update"       : default_options.merge(conditions_for(method || :put)).merge(resource.requirements(require_id))
-          when "destroy"      : default_options.merge(conditions_for(method || :delete)).merge(resource.requirements(require_id))
-          else                  default_options.merge(conditions_for(method)).merge(resource.requirements)
+          when "index", "new"; default_options.merge(add_conditions_for(resource.conditions, method || :get)).merge(resource.requirements)
+          when "create";       default_options.merge(add_conditions_for(resource.conditions, method || :post)).merge(resource.requirements)
+          when "show", "edit"; default_options.merge(add_conditions_for(resource.conditions, method || :get)).merge(resource.requirements(require_id))
+          when "update";       default_options.merge(add_conditions_for(resource.conditions, method || :put)).merge(resource.requirements(require_id))
+          when "destroy";      default_options.merge(add_conditions_for(resource.conditions, method || :delete)).merge(resource.requirements(require_id))
+          else                  default_options.merge(add_conditions_for(resource.conditions, method)).merge(resource.requirements)
         end
       end
   end
 end
 
-ActionController::Routing::RouteSet::Mapper.send :include, ActionController::Resources
+class ActionController::Routing::RouteSet::Mapper
+  include ActionController::Resources
+end

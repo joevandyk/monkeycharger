@@ -1,4 +1,3 @@
-require 'test/unit'
 require 'test/unit/assertions'
 
 module ActionController #:nodoc:
@@ -39,7 +38,7 @@ module ActionController #:nodoc:
   #
   # == Testing named routes
   #
-  # If you're using named routes, they can be easily tested using the original named routes methods straight in the test case.
+  # If you're using named routes, they can be easily tested using the original named routes' methods straight in the test case.
   # Example:
   #
   #  assert_redirected_to page_url(:title => 'foo')
@@ -47,7 +46,7 @@ module ActionController #:nodoc:
     def self.included(klass)
       %w(response selector tag dom routing model).each do |kind|
         require "action_controller/assertions/#{kind}_assertions"
-        klass.send :include, const_get("#{kind.camelize}Assertions")
+        klass.module_eval { include const_get("#{kind.camelize}Assertions") }
       end
     end
 

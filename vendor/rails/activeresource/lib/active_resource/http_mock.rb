@@ -32,7 +32,12 @@ module ActiveResource
         pairs.each do |(path, response)|
           responses[path] = response
         end
-        yield Responder.new(responses) if block_given?
+
+        if block_given?
+          yield Responder.new(responses) 
+        else
+          Responder.new(responses)
+        end
       end
 
       def reset!
@@ -70,7 +75,7 @@ module ActiveResource
     attr_accessor :path, :method, :body, :headers
 
     def initialize(method, path, body = nil, headers = {})
-      @method, @path, @body, @headers = method, path, body, headers
+      @method, @path, @body, @headers = method, path, body, headers.dup
       @headers.update('Content-Type' => 'application/xml')
     end
 

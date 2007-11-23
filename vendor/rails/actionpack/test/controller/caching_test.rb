@@ -2,7 +2,7 @@ require 'fileutils'
 require File.dirname(__FILE__) + '/../abstract_unit'
 
 CACHE_DIR = 'test_cache'
-# Don't change '/../temp/' cavalierly or you might hoze something you don't want hozed
+# Don't change '/../temp/' cavalierly or you might hose something you don't want hosed
 FILE_STORE_PATH = File.join(File.dirname(__FILE__), '/../temp/', CACHE_DIR)
 ActionController::Base.page_cache_directory = FILE_STORE_PATH
 ActionController::Base.fragment_cache_store = :file_store, FILE_STORE_PATH
@@ -90,6 +90,15 @@ class PageCachingTest < Test::Unit::TestCase
 
     get :expire_custom_path
     assert !File.exist?("#{FILE_STORE_PATH}/index.html")
+  end
+
+  uses_mocha("should_cache_ok_at_custom_path") do
+    def test_should_cache_ok_at_custom_path
+      @request.expects(:path).returns("/index.html")
+      get :ok
+      assert_response :ok
+      assert File.exist?("#{FILE_STORE_PATH}/index.html")
+    end
   end
 
   [:ok, :no_content, :found, :not_found].each do |status|
@@ -239,15 +248,21 @@ class ActionCacheTest < Test::Unit::TestCase
     @request.host = 'jamis.hostname.com'
     get :index
     jamis_cache = content_to_cache
-
+    
+    reset!
+    
     @request.host = 'david.hostname.com'
     get :index
     david_cache = content_to_cache
     assert_not_equal jamis_cache, @response.body
 
+    reset!
+
     @request.host = 'jamis.hostname.com'
     get :index
     assert_equal jamis_cache, @response.body
+
+    reset!
 
     @request.host = 'david.hostname.com'
     get :index
@@ -278,6 +293,13 @@ class ActionCacheTest < Test::Unit::TestCase
     path_object = @path_class.new(@mock_controller, {})
     assert_equal 'xml', path_object.extension
     assert_equal 'example.org/posts/index.xml', path_object.path
+  end
+  
+  def test_correct_content_type_is_returned_for_cache_hit
+    # run it twice to cache it the first time
+    get :index, :id => 'content-type.xml'
+    get :index, :id => 'content-type.xml'
+    assert_equal 'application/xml', @response.content_type
   end
 
   def test_empty_path_is_normalized

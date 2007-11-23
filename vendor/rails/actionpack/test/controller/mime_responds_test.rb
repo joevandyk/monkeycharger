@@ -35,6 +35,15 @@ class RespondToController < ActionController::Base
     end
   end
 
+  def forced_xml
+    request.format = :xml
+
+    respond_to do |type|
+      type.html { render :text => "HTML"    }
+      type.xml  { render :text => "XML"     }
+    end
+  end
+
   def just_xml
     respond_to do |type|
       type.xml  { render :text => "XML" }
@@ -76,8 +85,8 @@ class RespondToController < ActionController::Base
       type.html   { render :text => "HTML"   }
       type.mobile { render :text => "Mobile" }
     end
-
-    Mime.send :remove_const, :MOBILE
+  ensure
+    Mime.module_eval { remove_const :MOBILE if const_defined?(:MOBILE) }
   end
 
   def custom_constant_handling_without_block
@@ -88,7 +97,8 @@ class RespondToController < ActionController::Base
       type.mobile
     end
 
-    Mime.send :remove_const, :MOBILE    
+  ensure
+    Mime.module_eval { remove_const :MOBILE if const_defined?(:MOBILE) }
   end
 
   def handle_any
@@ -103,6 +113,32 @@ class RespondToController < ActionController::Base
       type.html
       type.js
     end
+  end 
+  
+  def iphone_with_html_response_type 
+    Mime::Type.register_alias("text/html", :iphone)
+    request.format = "iphone" if request.env["HTTP_ACCEPT"] == "text/iphone"
+    
+    respond_to do |type|
+      type.html   { @type = "Firefox" }
+      type.iphone { @type = "iPhone"  }
+    end
+
+  ensure
+    Mime.module_eval { remove_const :IPHONE if const_defined?(:IPHONE) }
+  end
+
+  def iphone_with_html_response_type_without_layout
+    Mime::Type.register_alias("text/html", :iphone)
+    request.format = "iphone" if request.env["HTTP_ACCEPT"] == "text/iphone"
+    
+    respond_to do |type|
+      type.html   { @type = "Firefox"; render :action => "iphone_with_html_response_type" }
+      type.iphone { @type = "iPhone" ; render :action => "iphone_with_html_response_type" }
+    end
+
+  ensure
+    Mime.module_eval { remove_const :IPHONE if const_defined?(:IPHONE) }
   end
 
   def rescue_action(e)
@@ -111,8 +147,10 @@ class RespondToController < ActionController::Base
 
   protected
     def set_layout
-      if action_name == "all_types_with_layout"
-        "standard"
+      if ["all_types_with_layout", "iphone_with_html_response_type"].include?(action_name)
+        "respond_to/layouts/standard"
+      elsif action_name == "iphone_with_html_response_type_without_layout"
+        "respond_to/layouts/missing"
       end
     end
 end
@@ -306,7 +344,7 @@ class MimeControllerTest < Test::Unit::TestCase
   def test_html_type_with_layout
     @request.env["HTTP_ACCEPT"] = "text/html"
     get :all_types_with_layout
-    assert_equal '<html>HTML for all_types_with_layout</html>', @response.body
+    assert_equal '<html><div id="html">HTML for all_types_with_layout</div></html>', @response.body
   end
 
   def test_xhr
@@ -343,6 +381,14 @@ class MimeControllerTest < Test::Unit::TestCase
     assert_equal "RSS", @response.body
   end
 
+  def test_internally_forced_format
+    get :forced_xml
+    assert_equal "XML", @response.body
+
+    get :forced_xml, :format => "html"
+    assert_equal "XML", @response.body
+  end
+
   def test_extension_synonyms
     get :html_xml_or_rss, :format => "xhtml"
     assert_equal "HTML", @response.body
@@ -363,5 +409,98 @@ class MimeControllerTest < Test::Unit::TestCase
 
     get :using_defaults, :format => "xml"
     assert_equal "using_defaults - xml", @response.body
+  end 
+  
+  def test_format_with_custom_response_type
+    get :iphone_with_html_response_type
+    assert_equal '<html><div id="html">Hello future from Firefox!</div></html>', @response.body 
+    
+    get :iphone_with_html_response_type, :format => "iphone"
+    assert_equal "text/html", @response.content_type
+    assert_equal '<html><div id="iphone">Hello iPhone future from iPhone!</div></html>', @response.body
+  end 
+  
+  def test_format_with_custom_response_type_and_request_headers
+    @request.env["HTTP_ACCEPT"] = "text/iphone"
+    get :iphone_with_html_response_type
+    assert_equal '<html><div id="iphone">Hello iPhone future from iPhone!</div></html>', @response.body
+    assert_equal "text/html", @response.content_type
+  end 
+
+  def test_format_with_custom_response_type_and_request_headers_with_only_one_layout_present
+    get :iphone_with_html_response_type_without_layout
+    assert_equal '<html><div id="html_missing">Hello future from Firefox!</div></html>', @response.body 
+
+    @request.env["HTTP_ACCEPT"] = "text/iphone"
+    assert_raises(ActionController::MissingTemplate) { get :iphone_with_html_response_type_without_layout }
+  end 
+end
+
+class AbstractPostController < ActionController::Base
+  class << self
+    def view_paths
+      [ File.dirname(__FILE__) + "/../fixtures/post_test/" ]
+    end
   end
 end
+
+# For testing layouts which are set automatically
+class PostController < AbstractPostController
+  around_filter :with_iphone
+
+  def index
+    respond_to do |type|
+      type.html
+      type.iphone
+    end
+  end
+
+  protected
+    def with_iphone
+      Mime::Type.register_alias("text/html", :iphone)
+      request.format = "iphone" if request.env["HTTP_ACCEPT"] == "text/iphone"
+      yield
+    ensure
+      Mime.module_eval { remove_const :IPHONE if const_defined?(:IPHONE) }
+    end
+end
+
+class SuperPostController < PostController  
+  def index
+    respond_to do |type|
+      type.html
+      type.iphone
+    end
+  end
+end
+
+class MimeControllerLayoutsTest < Test::Unit::TestCase
+  def setup
+    @request    = ActionController::TestRequest.new
+    @response   = ActionController::TestResponse.new
+
+    @controller   = PostController.new
+    @request.host = "www.example.com"
+  end
+  
+  def test_missing_layout_renders_properly
+    get :index
+    assert_equal '<html><div id="html">Hello Firefox</div></html>', @response.body 
+
+    @request.env["HTTP_ACCEPT"] = "text/iphone"
+    get :index
+    assert_equal 'Hello iPhone', @response.body
+  end
+  
+  def test_format_with_inherited_layouts
+    @controller = SuperPostController.new
+    
+    get :index
+    assert_equal 'Super Firefox', @response.body
+    
+    @request.env["HTTP_ACCEPT"] = "text/iphone"
+    get :index
+    assert_equal '<html><div id="super_iphone">Super iPhone</div></html>', @response.body
+  end
+end
+  

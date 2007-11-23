@@ -1,10 +1,5 @@
 require File.dirname(__FILE__) + '/../abstract_unit'
-
-class Customer < Struct.new(:name, :id)
-  def to_param
-    id.to_s
-  end
-end
+require File.dirname(__FILE__) + '/fake_models'
 
 class CustomersController < ActionController::Base
 end
@@ -157,7 +152,15 @@ class NewRenderTestController < ActionController::Base
   def partial_with_hash_object
     render :partial => "hash_object", :object => {:first_name => "Sam"}
   end
-
+  
+  def partial_hash_collection
+    render :partial => "hash_object", :collection => [ {:first_name => "Pratik"}, {:first_name => "Amy"} ]
+  end
+  
+  def partial_hash_collection_with_locals
+    render :partial => "hash_greeting", :collection => [ {:first_name => "Pratik"}, {:first_name => "Amy"} ], :locals => { :greeting => "Hola" }
+  end
+  
   def partial_with_implicit_local_assignment
     @customer = Customer.new("Marcel")
     render :partial => "customer"
@@ -169,7 +172,7 @@ class NewRenderTestController < ActionController::Base
   
   def hello_in_a_string
     @customers = [ Customer.new("david"), Customer.new("mary") ]
-    render :text =>  "How's there? #{render_to_string("test/list")}"
+    render :text =>  "How's there? " << render_to_string(:template => "test/list")
   end
   
   def render_to_string_with_assigns
@@ -208,7 +211,7 @@ class NewRenderTestController < ActionController::Base
   end
 
   def render_with_explicit_template
-    render "test/hello_world"
+    render :template => "test/hello_world"
   end
 
   def double_render
@@ -352,6 +355,14 @@ class NewRenderTestController < ActionController::Base
   def render_content_type_from_body
     response.content_type = Mime::RSS
     render :text => "hello world!"
+  end
+
+  def render_call_to_partial_with_layout
+    render :action => "calling_partial_with_layout"
+  end
+
+  def render_using_layout_around_block
+    render :action => "using_layout_around_block"
   end
 
   def rescue_action(e) raise end
@@ -619,7 +630,7 @@ EOS
   end
 
   def test_render_with_explicit_template
-    assert_deprecated(/render/) { get :render_with_explicit_template }
+    get :render_with_explicit_template
     assert_response :success
   end
 
@@ -678,7 +689,17 @@ EOS
 
   def test_partial_with_hash_object
     get :partial_with_hash_object
-    assert_equal "Sam", @response.body
+    assert_equal "Sam\nmaS\n", @response.body
+  end
+  
+  def test_hash_partial_collection
+    get :partial_hash_collection
+    assert_equal "Pratik\nkitarP\nAmy\nymA\n", @response.body
+  end
+  
+  def test_partial_hash_collection_with_locals
+    get :partial_hash_collection_with_locals
+    assert_equal "Hola: PratikHola: Amy", @response.body
   end
 
   def test_partial_with_implicit_local_assignment
@@ -797,5 +818,15 @@ EOS
 
     get :render_with_object_location
     assert_equal "http://www.nextangle.com/customers/1", @response.headers["Location"]
+  end
+
+  def test_render_call_to_partial_with_layout
+    get :render_call_to_partial_with_layout
+    assert_equal "Before (David)\nInside from partial (David)\nAfter", @response.body
+  end
+  
+  def test_using_layout_around_block
+    get :using_layout_around_block
+    assert_equal "Before (David)\nInside from block\nAfter", @response.body
   end
 end

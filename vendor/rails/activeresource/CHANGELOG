@@ -1,4 +1,33 @@
-*SVN*
+* Don't cache net/http object so that ActiveResource is more thread-safe.  Closes #10142 [kou]
+
+* Update XML documentation examples to include explicit type attributes. Closes #9754 [hasmanyjosh]
+
+*2.0.0 [Preview Release]* (September 29th, 2007)
+
+* Added one-off declarations of mock behavior [DHH]. Example:
+
+    Before:
+      ActiveResource::HttpMock.respond_to do |mock|
+        mock.get "/people/1.xml", {}, "<person><name>David</name></person>"
+      end
+      
+    Now:
+      ActiveResource::HttpMock.respond_to.get "/people/1.xml", {}, "<person><name>David</name></person>"
+
+* Added ActiveResource.format= which defaults to :xml but can also be set to :json [DHH]. Example:
+
+    class Person < ActiveResource::Base
+      self.site   = "http://app/"
+      self.format = :json
+    end
+    
+    person = Person.find(1) # => GET http://app/people/1.json
+    person.name = "David"
+    person.save             # => PUT http://app/people/1.json {name: "David"}
+    
+    Person.format = :xml
+    person.name = "Mary"
+    person.save             # => PUT http://app/people/1.json <person><name>Mary</name></person>    
 
 * Fix reload error when path prefix is used.  #8727 [Ian Warshak]
 

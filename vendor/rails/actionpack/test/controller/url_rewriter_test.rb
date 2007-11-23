@@ -73,6 +73,16 @@ class UrlRewriterTests < Test::Unit::TestCase
 
     assert_equal 'http://, test.host, /, hi, bye, {"id"=>"2"}', @rewriter.to_str
   end
+
+  def test_trailing_slash
+    options = {:controller => 'foo', :action => 'bar', :id => '3', :only_path => true}
+    assert_equal '/foo/bar/3', @rewriter.rewrite(options)
+    assert_equal '/foo/bar/3?query=string', @rewriter.rewrite(options.merge({:query => 'string'}))
+    options.update({:trailing_slash => true})
+    assert_equal '/foo/bar/3/', @rewriter.rewrite(options)
+    options.update({:query => 'string'})
+    assert_equal '/foo/bar/3/?query=string', @rewriter.rewrite(options)
+  end
 end
 
 class UrlWriterTests < Test::Unit::TestCase
@@ -141,6 +151,7 @@ class UrlWriterTests < Test::Unit::TestCase
 
   def test_named_route
     ActionController::Routing::Routes.draw do |map|
+      map.no_args '/this/is/verbose', :controller => 'home', :action => 'index'
       map.home '/home/sweet/home/:user', :controller => 'home', :action => 'index'
       map.connect ':controller/:action/:id'
     end
@@ -153,6 +164,8 @@ class UrlWriterTests < Test::Unit::TestCase
       controller.send(:home_url, :host => 'www.basecamphq.com', :user => 'again')
       
     assert_equal("/home/sweet/home/alabama", controller.send(:home_path, :user => 'alabama', :host => 'unused'))
+    assert_equal("http://www.basecamphq.com/home/sweet/home/alabama", controller.send(:home_url, :user => 'alabama', :host => 'www.basecamphq.com'))
+    assert_equal("http://www.basecamphq.com/this/is/verbose", controller.send(:no_args_url, :host=>'www.basecamphq.com'))
   ensure
     ActionController::Routing::Routes.load!
   end
@@ -171,6 +184,7 @@ class UrlWriterTests < Test::Unit::TestCase
       controller.send(:url_for, :controller => 'brave', :action => 'new', :id => 'world', :only_path => true)
     
     assert_equal("/home/sweet/home/alabama", controller.send(:home_url, :user => 'alabama', :host => 'unused', :only_path => true))
+    assert_equal("/home/sweet/home/alabama", controller.send(:home_path, 'alabama'))
   ensure
     ActionController::Routing::Routes.load!
   end
@@ -218,6 +232,10 @@ class UrlWriterTests < Test::Unit::TestCase
     assert_equal params[1], { 'query[person][name]'       => 'Bob'          }.to_query
     assert_equal params[2], { 'query[person][position][]' => 'prof'         }.to_query
     assert_equal params[3], { 'query[person][position][]' => 'art director' }.to_query
+  end
+
+  def test_path_generation_for_symbol_parameter_keys
+    assert_generates("/image", :controller=> :image)
   end
 
   private

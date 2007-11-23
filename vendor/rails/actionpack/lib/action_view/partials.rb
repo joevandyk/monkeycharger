@@ -44,42 +44,96 @@ module ActionView
   #   <%= render :partial => "advertisement/ad", :locals => { :ad => @advertisement } %>
   #
   # This will render the partial "advertisement/_ad.erb" regardless of which controller this is being called from.
+  #
+  # == Rendering partials with layouts
+  #
+  # Partials can have their own layouts applied to them. These layouts are different than the ones that are specified globally
+  # for the entire action, but they work in a similar fashion. Imagine a list with two types of users:
+  #
+  #   <%# app/views/users/index.html.erb &>
+  #   Here's the administrator:
+  #   <%= render :partial => "user", :layout => "administrator", :locals => { :user => administrator } %>
+  #
+  #   Here's the editor:
+  #   <%= render :partial => "user", :layout => "editor", :locals => { :user => editor } %>
+  #
+  #   <%# app/views/users/_user.html.erb &>
+  #   Name: <%= user.name %>
+  #
+  #   <%# app/views/users/_administrator.html.erb &>
+  #   <div id="administrator">
+  #     Budget: $<%= user.budget %>
+  #     <%= yield %>
+  #   </div>
+  #
+  #   <%# app/views/users/_editor.html.erb &>
+  #   <div id="editor">
+  #     Deadline: $<%= user.deadline %>
+  #     <%= yield %>
+  #   </div>
+  #
+  # ...this will return:
+  #
+  #   Here's the administrator:
+  #   <div id="administrator">
+  #     Budget: $<%= user.budget %>
+  #     Name: <%= user.name %>
+  #   </div>
+  #
+  #   Here's the editor:
+  #   <div id="editor">
+  #     Deadline: $<%= user.deadline %>
+  #     Name: <%= user.name %>
+  #   </div>
+  #
+  # You can also apply a layout to a block within any template:
+  #
+  #   <%# app/views/users/_chief.html.erb &>
+  #   <% render(:layout => "administrator", :locals => { :user => chief }) do %>
+  #     Title: <%= chief.title %>
+  #   <% end %>
+  #
+  # ...this will return:
+  #
+  #   <div id="administrator">
+  #     Budget: $<%= user.budget %>
+  #     Title: <%= chief.name %>
+  #   </div>
+  #
+  # As you can see, the :locals hash is shared between both the partial and its layout.
   module Partials
     private
-      # Deprecated, use render :partial
-      def render_partial(partial_path, local_assigns = nil, deprecated_local_assigns = nil) #:nodoc:
+      def render_partial(partial_path, object_assigns = nil, local_assigns = nil) #:nodoc:
         case partial_path
         when String, Symbol, NilClass
           path, partial_name = partial_pieces(partial_path)
-          object = extracting_object(partial_name, local_assigns, deprecated_local_assigns)
-          local_assigns = extract_local_assigns(local_assigns, deprecated_local_assigns)
+          object = extracting_object(partial_name, object_assigns)
           local_assigns = local_assigns ? local_assigns.clone : {}
           add_counter_to_local_assigns!(partial_name, local_assigns)
           add_object_to_local_assigns!(partial_name, local_assigns, object)
 
-          if logger
+          if logger && logger.debug?
             ActionController::Base.benchmark("Rendered #{path}/_#{partial_name}", Logger::DEBUG, false) do
               render("#{path}/_#{partial_name}", local_assigns)
             end
           else
             render("#{path}/_#{partial_name}", local_assigns)
           end
-        when Array, ActiveRecord::Associations::AssociationCollection
+        when Array, ActiveRecord::Associations::AssociationCollection, ActiveRecord::Associations::HasManyThroughAssociation
           if partial_path.any?
             path       = ActionController::RecordIdentifier.partial_path(partial_path.first)
             collection = partial_path
-            render_partial_collection(path, collection, nil, local_assigns.value)
+            render_partial_collection(path, collection, nil, object_assigns.value)
           else
             ""
           end
         else
           render_partial(
             ActionController::RecordIdentifier.partial_path(partial_path),
-            local_assigns, deprecated_local_assigns)
+            object_assigns, local_assigns)
         end
       end
 
-      # Deprecated, use render :partial, :collection
       def render_partial_collection(partial_name, collection, partial_spacer_template = nil, local_assigns = nil) #:nodoc:
         collection_of_partials = Array.new
         counter_name = partial_counter_name(partial_name)
@@ -117,18 +171,13 @@ module ActionView
         partial_name.split('/').last.split('.').first.intern
       end
 
-      def extracting_object(partial_name, local_assigns, deprecated_local_assigns)
+      def extracting_object(partial_name, object_assigns)
         variable_name = partial_variable_name(partial_name)
-        if local_assigns.is_a?(Hash) || local_assigns.nil?
+        if object_assigns.nil?
           controller.instance_variable_get("@#{variable_name}")
         else
-          # deprecated form where object could be passed in as second parameter
-          local_assigns
+          object_assigns
         end
-      end
-
-      def extract_local_assigns(local_assigns, deprecated_local_assigns)
-        local_assigns.is_a?(Hash) ? local_assigns : deprecated_local_assigns
       end
 
       def add_counter_to_local_assigns!(partial_name, local_assigns)
@@ -138,12 +187,14 @@ module ActionView
 
       def add_object_to_local_assigns!(partial_name, local_assigns, object)
         variable_name = partial_variable_name(partial_name)
-        local_assigns[variable_name] ||=
-          if object.is_a?(ActionView::Base::ObjectWrapper)
-            object.value
-          else
-            object
-          end || controller.instance_variable_get("@#{variable_name}")
+
+        local_assigns[:object] ||=
+          local_assigns[variable_name] ||=
+            if object.is_a?(ActionView::Base::ObjectWrapper)
+              object.value
+            else
+              object
+            end || controller.instance_variable_get("@#{variable_name}")
       end
   end
 end

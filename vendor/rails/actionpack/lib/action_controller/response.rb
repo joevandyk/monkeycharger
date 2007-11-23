@@ -28,8 +28,8 @@ module ActionController
       charset.blank? ? nil : charset.strip.split("=")[1]
     end
 
-    def redirect(to_url, permanently = false)
-      self.headers["Status"]   = "302 Found" unless headers["Status"] == "301 Moved Permanently"
+    def redirect(to_url, response_status)
+      self.headers["Status"] = response_status
       self.headers["Location"] = to_url
 
       self.body = "<html><body>You are being <a href=\"#{to_url}\">redirected</a>.</body></html>"
@@ -46,7 +46,7 @@ module ActionController
       def handle_conditional_get!
         if body.is_a?(String) && (headers['Status'] ? headers['Status'][0..2] == '200' : true)  && !body.empty?
           self.headers['ETag'] ||= %("#{Digest::MD5.hexdigest(body)}")
-          self.headers['Cache-Control'] = 'private' if headers['Cache-Control'] == DEFAULT_HEADERS['Cache-Control']
+          self.headers['Cache-Control'] = 'private, max-age=0, must-revalidate' if headers['Cache-Control'] == DEFAULT_HEADERS['Cache-Control']
 
           if request.headers['HTTP_IF_NONE_MATCH'] == headers['ETag']
             self.headers['Status'] = '304 Not Modified'

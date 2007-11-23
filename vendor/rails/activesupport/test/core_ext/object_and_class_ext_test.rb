@@ -65,7 +65,7 @@ class ClassExtTest < Test::Unit::TestCase
 
   def test_subclasses_of_should_not_return_removed_classes
     # First create the removed class
-    old_class = Nested.send :remove_const, :ClassL
+    old_class = Nested.class_eval { remove_const :ClassL }
     new_class = Class.new(ClassK)
     Nested.const_set :ClassL, new_class
     assert_equal "Nested::ClassL", new_class.name # Sanity check
@@ -85,7 +85,7 @@ class ClassExtTest < Test::Unit::TestCase
     assert !const_missing
     assert_equal [ Nested::ClassL ], subclasses
     
-    removed = Nested.send :remove_const, :ClassL   # keep it in memory
+    removed = Nested.class_eval { remove_const :ClassL }  # keep it in memory
     subclasses = Object.subclasses_of ClassK
     assert !const_missing
     assert subclasses.empty?
@@ -97,10 +97,22 @@ class ClassExtTest < Test::Unit::TestCase
     classes = Object.subclasses_of(ClassI, ClassK)
     assert_equal %w(ClassJ Nested::ClassL), classes.collect(&:to_s).sort
   end
-  
+
+  def test_subclasses_of_doesnt_find_anonymous_classes
+    assert_equal [], Object.subclasses_of(Foo)
+    bar = Class.new(Foo)
+    assert_nothing_raised do
+      assert_equal [bar], Object.subclasses_of(Foo)
+    end
+  end
 end
 
 class ObjectTests < Test::Unit::TestCase
+  def test_send_bang_aliases_send_before_19
+    assert_respond_to 'a', :send!
+    assert_equal 1, 'a'.send!(:size)
+  end
+
   def test_suppress_re_raises
     assert_raises(LoadError) { suppress(ArgumentError) {raise LoadError} }
   end
@@ -170,11 +182,18 @@ class ObjectInstanceVariableTest < Test::Unit::TestCase
     @source.instance_variable_set(:@baz, 'baz')
   end
 
+  def test_instance_variable_defined
+    assert @source.instance_variable_defined?('@bar')
+    assert @source.instance_variable_defined?(:@bar)
+    assert !@source.instance_variable_defined?(:@foo)
+    assert !@source.instance_variable_defined?('@foo')
+  end
+
   def test_copy_instance_variables_from_without_explicit_excludes
     assert_equal [], @dest.instance_variables
     @dest.copy_instance_variables_from(@source)
 
-    assert_equal %w(@bar @baz), @dest.instance_variables.sort
+    assert_equal %w(@bar @baz), @dest.instance_variables.sort.map(&:to_s)
     %w(@bar @baz).each do |name|
       assert_equal @source.instance_variable_get(name).object_id,
                    @dest.instance_variable_get(name).object_id
@@ -183,7 +202,7 @@ class ObjectInstanceVariableTest < Test::Unit::TestCase
 
   def test_copy_instance_variables_from_with_explicit_excludes
     @dest.copy_instance_variables_from(@source, ['@baz'])
-    assert !@dest.instance_variables.include?('@baz')
+    assert !@dest.instance_variable_defined?('@baz')
     assert_equal 'bar', @dest.instance_variable_get('@bar')
   end
 
@@ -196,8 +215,8 @@ class ObjectInstanceVariableTest < Test::Unit::TestCase
     end
 
     @dest.copy_instance_variables_from(@source)
-    assert !@dest.instance_variables.include?('@bar')
-    assert !@dest.instance_variables.include?('@quux')
+    assert !@dest.instance_variable_defined?('@bar')
+    assert !@dest.instance_variable_defined?('@quux')
     assert_equal 'baz', @dest.instance_variable_get('@baz')
   end
 
@@ -209,8 +228,15 @@ class ObjectInstanceVariableTest < Test::Unit::TestCase
   end
 
   def test_instance_exec_passes_arguments_to_block
-    block = Proc.new { |value| [self, value] }
-    assert_equal %w(hello goodbye), 'hello'.instance_exec('goodbye', &block)
+    assert_equal %w(hello goodbye), 'hello'.instance_exec('goodbye') { |v| [self, v] }
   end
 
+  def test_instance_exec_with_frozen_obj
+    assert_equal %w(olleh goodbye), 'hello'.freeze.instance_exec('goodbye') { |v| [reverse, v] }
+  end
+
+  def test_instance_exec_nested
+    assert_equal %w(goodbye olleh bar), 'hello'.instance_exec('goodbye') { |arg|
+      [arg] + instance_exec('bar') { |v| [reverse, v] } }
+  end
 end

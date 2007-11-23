@@ -3,71 +3,98 @@ namespace :db do
     desc 'Create all the local databases defined in config/database.yml'
     task :all => :environment do
       ActiveRecord::Base.configurations.each_value do |config|
-        create_local_database(config)
+        # Skip entries that don't have a database key, such as the first entry here:
+        #
+        #  defaults: &defaults 
+        #    adapter: mysql 
+        #    username: root
+        #    password: 
+        #    host: localhost
+        #  
+        #  development: 
+        #    database: blog_development
+        #    <<: *defaults
+        next unless config['database']
+        # Only connect to local databases
+        if config['host'] == 'localhost' || config['host'].blank?
+          create_database(config)
+        else
+          p "This task only creates local databases. #{config['database']} is on a remote host."
+        end
       end
     end
   end
 
-  desc 'Create the local database defined in config/database.yml for the current RAILS_ENV'
+  desc 'Create the database defined in config/database.yml for the current RAILS_ENV'
   task :create => :environment do
-    create_local_database(ActiveRecord::Base.configurations[RAILS_ENV])
+    create_database(ActiveRecord::Base.configurations[RAILS_ENV])
   end
 
-  def create_local_database(config)
-    # Only connect to local databases
-    if config['host'] == 'localhost' || config['host'].blank?
-      begin
-        ActiveRecord::Base.establish_connection(config)
-        ActiveRecord::Base.connection
-      rescue
-        case config['adapter']
-        when 'mysql'
-          @charset   = ENV['CHARSET']   || 'utf8'
-          @collation = ENV['COLLATION'] || 'utf8_general_ci'
-          begin
-            ActiveRecord::Base.establish_connection(config.merge({'database' => nil}))
-            ActiveRecord::Base.connection.create_database(config['database'], {:charset => @charset, :collation => @collation})
-            ActiveRecord::Base.establish_connection(config)
-            p "MySQL #{config['database']} database succesfully created"
-          rescue
-            $stderr.puts "Couldn't create database for #{config.inspect}"
-          end
-        when 'postgresql'
-          `createdb "#{config['database']}" -E utf8`
-        when 'sqlite'
-          `sqlite "#{config['database']}"`
-        when 'sqlite3'
-          `sqlite3 "#{config['database']}"`
+  def create_database(config)
+    begin
+      ActiveRecord::Base.establish_connection(config)
+      ActiveRecord::Base.connection
+    rescue
+      case config['adapter']
+      when 'mysql'
+        @charset   = ENV['CHARSET']   || 'utf8'
+        @collation = ENV['COLLATION'] || 'utf8_general_ci'
+        begin
+          ActiveRecord::Base.establish_connection(config.merge({'database' => nil}))
+          ActiveRecord::Base.connection.create_database(config['database'], {:charset => @charset, :collation => @collation})
+          ActiveRecord::Base.establish_connection(config)
+        rescue
+          $stderr.puts "Couldn't create database for #{config.inspect}"
         end
-      else
-        p "#{config['database']} already exists"
+      when 'postgresql'
+        `createdb "#{config['database']}" -E utf8`
+      when 'sqlite'
+        `sqlite "#{config['database']}"`
+      when 'sqlite3'
+        `sqlite3 "#{config['database']}"`
       end
     else
-      p "This task only creates local databases. #{config['database']} is on a remote host."
+      p "#{config['database']} already exists"
     end
   end
 
-  desc 'Drops the database for the current environment'
+  namespace :drop do
+    desc 'Drops all the local databases defined in config/database.yml'
+    task :all => :environment do
+      ActiveRecord::Base.configurations.each_value do |config|
+        # Skip entries that don't have a database key
+        next unless config['database']
+        # Only connect to local databases
+        if config['host'] == 'localhost' || config['host'].blank?
+          drop_database(config)
+        else
+          p "This task only drops local databases. #{config['database']} is on a remote host."
+        end
+      end
+    end
+  end
+
+  desc 'Drops the database for the current RAILS_ENV'
   task :drop => :environment do
-    config = ActiveRecord::Base.configurations[RAILS_ENV || 'development']
-    case config['adapter']
-    when 'mysql'
-      ActiveRecord::Base.connection.drop_database config['database']
-    when /^sqlite/
-      FileUtils.rm_f File.join(RAILS_ROOT, config['database'])
-    when 'postgresql'
-      `dropdb "#{config['database']}"`
-    end
+    drop_database(ActiveRecord::Base.configurations[RAILS_ENV || 'development'])
   end
 
-  desc "Migrate the database through scripts in db/migrate. Target specific version with VERSION=x"
+  desc "Migrate the database through scripts in db/migrate. Target specific version with VERSION=x. Turn off output with VERBOSE=false."
   task :migrate => :environment do
+    ActiveRecord::Migration.verbose = ENV["VERBOSE"] ? ENV["VERBOSE"] == "true" : true
     ActiveRecord::Migrator.migrate("db/migrate/", ENV["VERSION"] ? ENV["VERSION"].to_i : nil)
     Rake::Task["db:schema:dump"].invoke if ActiveRecord::Base.schema_format == :ruby
   end
 
-  desc 'Drops, creates and then migrates the database for the current environment. Target specific version with VERSION=x'
-  task :reset => ['db:drop', 'db:create', 'db:migrate']
+  desc 'Rolls the schema back to the previous version. Specify the number of steps with STEP=n'
+  task :rollback => :environment do
+    step = ENV['STEP'] ? ENV['STEP'].to_i : 1
+    version = ActiveRecord::Migrator.current_version - step
+    ActiveRecord::Migrator.migrate('db/migrate/', version)
+  end
+
+  desc 'Drops and recreates the database from db/schema.rb for the current environment.'
+  task :reset => ['db:drop', 'db:create', 'db:schema:load']
 
   desc "Retrieves the charset for the current environment's database"
   task :charset => :environment do
@@ -249,12 +276,12 @@ namespace :db do
   end
 
   namespace :sessions do
-    desc "Creates a sessions table for use with CGI::Session::ActiveRecordStore"
+    desc "Creates a sessions migration for use with CGI::Session::ActiveRecordStore"
     task :create => :environment do
       raise "Task unavailable to this database (no migration support)" unless ActiveRecord::Base.connection.supports_migrations?
       require 'rails_generator'
       require 'rails_generator/scripts/generate'
-      Rails::Generator::Scripts::Generate.new.run(["session_migration", ENV["MIGRATION"] || "AddSessions"])
+      Rails::Generator::Scripts::Generate.new.run(["session_migration", ENV["MIGRATION"] || "CreateSessions"])
     end
 
     desc "Clear the sessions table"
@@ -263,6 +290,17 @@ namespace :db do
       session_table = Inflector.pluralize(session_table) if ActiveRecord::Base.pluralize_table_names
       ActiveRecord::Base.connection.execute "DELETE FROM #{session_table}"
     end
+  end
+end
+
+def drop_database(config)
+  case config['adapter']
+  when 'mysql'
+    ActiveRecord::Base.connection.drop_database config['database']
+  when /^sqlite/
+    FileUtils.rm_f(File.join(RAILS_ROOT, config['database']))
+  when 'postgresql'
+    `dropdb "#{config['database']}"`
   end
 end
 

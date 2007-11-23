@@ -21,18 +21,29 @@ module ActionController
     self.default_url_options = {}
     
     def self.included(base) #:nodoc:
-      ActionController::Routing::Routes.install_helpers base
+      ActionController::Routing::Routes.install_helpers base 
       base.mattr_accessor :default_url_options
       base.default_url_options ||= default_url_options
     end
     
-    # Generate a url with the provided options. The following special options may
-    # effect the constructed url:
+    # Generate a url based on the options provided, default_url_options and the 
+    # routes defined in routes.rb.  The following options are supported:
     # 
-    #   * :host Specifies the host the link should be targetted at. This option
-    #     must be provided either explicitly, or via default_url_options.
-    #   * :protocol The protocol to connect to. Defaults to 'http'
-    #   * :port Optionally specify the port to connect to.
+    # * <tt>:only_path</tt> If true, the relative url is returned. Defaults to false.
+    # * <tt>:protocol</tt> The protocol to connect to. Defaults to 'http'.
+    # * <tt>:host</tt> Specifies the host the link should be targetted at. If <tt>:only_path</tt> is false, this option must be 
+    #   provided either explicitly, or via default_url_options. 
+    # * <tt>:port</tt> Optionally specify the port to connect to.
+    # * <tt>:anchor</tt> An anchor name to be appended to the path.
+    # 
+    # Any other key(:controller, :action, etc...) given to <tt>url_for</tt> is forwarded to the Routes module.
+    # 
+    # Examples:
+    # 
+    #    url_for :controller => 'tasks', :action => 'testing', :host=>'somehost.org', :port=>'8080'    # => 'http://somehost.org:8080/tasks/testing'
+    #    url_for :controller => 'tasks', :action => 'testing', :host=>'somehost.org', :anchor => 'ok', :only_path => true    # => '/tasks/testing#ok'
+    #    url_for :controller => 'tasks', :action => 'testing', :host=>'somehost.org', :number => '33'  # => 'http://somehost.org/tasks/testing?number=33'
+    # 
     def url_for(options)
       options = self.class.default_url_options.merge(options)
       
@@ -89,9 +100,9 @@ module ActionController
           rewritten_url << ":#{options.delete(:port)}" if options.key?(:port)
         end
 
+        path = rewrite_path(options)
         rewritten_url << @request.relative_url_root.to_s unless options[:skip_relative_url_root]
-        rewritten_url << rewrite_path(options)
-        rewritten_url << '/' if options[:trailing_slash]
+        rewritten_url << (options[:trailing_slash] ? path.sub(/\?|\z/) { "/" + $& } : path)
         rewritten_url << "##{options[:anchor]}" if options[:anchor]
 
         rewritten_url

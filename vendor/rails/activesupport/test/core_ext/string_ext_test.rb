@@ -1,9 +1,12 @@
 require 'date'
 require File.dirname(__FILE__) + '/../abstract_unit'
+require 'inflector_test_cases'
 
 class StringInflectionsTest < Test::Unit::TestCase
+  include InflectorTestCases
+
   def test_pluralize
-    InflectorTest::SingularToPlural.each do |singular, plural|
+    SingularToPlural.each do |singular, plural|
       assert_equal(plural, singular.pluralize)
     end
 
@@ -11,25 +14,25 @@ class StringInflectionsTest < Test::Unit::TestCase
   end
 
   def test_singularize
-    InflectorTest::SingularToPlural.each do |singular, plural|
+    SingularToPlural.each do |singular, plural|
       assert_equal(singular, plural.singularize)
     end
   end
 
   def test_titleize
-    InflectorTest::MixtureToTitleCase.each do |before, titleized|
+    MixtureToTitleCase.each do |before, titleized|
       assert_equal(titleized, before.titleize)
     end
   end
 
   def test_camelize
-    InflectorTest::CamelToUnderscore.each do |camel, underscore|
+    CamelToUnderscore.each do |camel, underscore|
       assert_equal(camel, underscore.camelize)
     end
   end
 
   def test_underscore
-    InflectorTest::CamelToUnderscore.each do |camel, underscore|
+    CamelToUnderscore.each do |camel, underscore|
       assert_equal(underscore, camel.underscore)
     end
 
@@ -38,7 +41,7 @@ class StringInflectionsTest < Test::Unit::TestCase
   end
 
   def test_underscore_to_lower_camel
-    InflectorTest::UnderscoreToLowerCamel.each do |underscored, lower_camel|
+    UnderscoreToLowerCamel.each do |underscored, lower_camel|
       assert_equal(lower_camel, underscored.camelize(:lower))
     end
   end
@@ -48,29 +51,29 @@ class StringInflectionsTest < Test::Unit::TestCase
   end
 
   def test_foreign_key
-    InflectorTest::ClassNameToForeignKeyWithUnderscore.each do |klass, foreign_key|
+    ClassNameToForeignKeyWithUnderscore.each do |klass, foreign_key|
       assert_equal(foreign_key, klass.foreign_key)
     end
 
-    InflectorTest::ClassNameToForeignKeyWithoutUnderscore.each do |klass, foreign_key|
+    ClassNameToForeignKeyWithoutUnderscore.each do |klass, foreign_key|
       assert_equal(foreign_key, klass.foreign_key(false))
     end
   end
 
   def test_tableize
-    InflectorTest::ClassNameToTableName.each do |class_name, table_name|
+    ClassNameToTableName.each do |class_name, table_name|
       assert_equal(table_name, class_name.tableize)
     end
   end
 
   def test_classify
-    InflectorTest::ClassNameToTableName.each do |class_name, table_name|
+    ClassNameToTableName.each do |class_name, table_name|
       assert_equal(class_name, table_name.classify)
     end
   end
 
   def test_humanize
-    InflectorTest::UnderscoreToHuman.each do |underscore, human|
+    UnderscoreToHuman.each do |underscore, human|
       assert_equal(human, underscore.humanize)
     end
   end
@@ -143,6 +146,7 @@ class StringInflectionsTest < Test::Unit::TestCase
     assert !s.ends_with?('el')
   end
 
+  # FIXME: Ruby 1.9
   def test_each_char_with_utf8_string_when_kcode_is_utf8
     old_kcode, $KCODE = $KCODE, 'UTF8'
     '€2.99'.each_char do |char|

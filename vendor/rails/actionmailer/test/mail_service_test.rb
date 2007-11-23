@@ -245,6 +245,14 @@ class TestMailer < ActionMailer::Base
     body         "testing"
   end
 
+  def return_path
+    recipients   "no.one@nowhere.test"
+    subject      "return path test"
+    from         "some.one@somewhere.test"
+    body         "testing"
+    headers      "return-path" => "another@somewhere.test"
+  end
+
   class <<self
     attr_accessor :received_body
   end
@@ -274,7 +282,7 @@ class ActionMailerTest < Test::Unit::TestCase
 
   # Replacing logger work around for mocha bug. Should be fixed in mocha 0.3.3
   def setup
-    ActionMailer::Base.delivery_method = :test
+    set_delivery_method :test
     ActionMailer::Base.perform_deliveries = true
     ActionMailer::Base.raise_delivery_errors = true
     ActionMailer::Base.deliveries = []
@@ -282,9 +290,10 @@ class ActionMailerTest < Test::Unit::TestCase
     @original_logger = TestMailer.logger
     @recipient = 'test@localhost'
   end
-  
+
   def teardown
     TestMailer.logger = @original_logger
+    restore_delivery_method
   end
 
   def test_nested_parts
@@ -858,6 +867,17 @@ EOF
     assert_match %r{format=flowed}, mail['content-type'].to_s
     assert_match %r{charset=utf-8}, mail['content-type'].to_s
   end
+
+  def test_return_path_with_create
+    mail = TestMailer.create_return_path
+    assert_equal "<another@somewhere.test>", mail['return-path'].to_s
+  end
+
+  def test_return_path_with_deliver
+    ActionMailer::Base.delivery_method = :smtp
+    TestMailer.deliver_return_path
+    assert_match %r{^Return-Path: <another@somewhere.test>}, MockSMTP.deliveries[0][0]
+  end
 end
 
 end # uses_mocha
@@ -883,9 +903,13 @@ class MethodNamingTest < Test::Unit::TestCase
   end
 
   def setup
-    ActionMailer::Base.delivery_method = :test
+    set_delivery_method :test
     ActionMailer::Base.perform_deliveries = true
     ActionMailer::Base.deliveries = []
+  end
+
+  def teardown
+    restore_delivery_method
   end
 
   def test_send_method

@@ -1,5 +1,5 @@
 #--
-# Copyright (c) 2004-2006 David Heinemeier Hansson
+# Copyright (c) 2004-2007 David Heinemeier Hansson
 #
 # Permission is hereby granted, free of charge, to any person obtaining
 # a copy of this software and associated documentation files (the
@@ -44,7 +44,6 @@ require 'action_controller/flash'
 require 'action_controller/filters'
 require 'action_controller/layout'
 require 'action_controller/mime_responds'
-require 'action_controller/scaffolding'
 require 'action_controller/helpers'
 require 'action_controller/cookies'
 require 'action_controller/cgi_process'
@@ -55,8 +54,7 @@ require 'action_controller/session_management'
 require 'action_controller/http_authentication'
 require 'action_controller/components'
 require 'action_controller/record_identifier'
-require 'action_controller/macros/auto_complete'
-require 'action_controller/macros/in_place_editing'
+require 'action_controller/request_forgery_protection'
 
 require 'action_view'
 ActionController::Base.template_class = ActionView::Base
@@ -68,7 +66,6 @@ ActionController::Base.class_eval do
   include ActionController::Benchmarking
   include ActionController::Rescue
   include ActionController::MimeResponds
-  include ActionController::Scaffolding
   include ActionController::Helpers
   include ActionController::Cookies
   include ActionController::Caching
@@ -78,6 +75,5 @@ ActionController::Base.class_eval do
   include ActionController::HttpAuthentication::Basic::ControllerMethods
   include ActionController::Components
   include ActionController::RecordIdentifier
-  include ActionController::Macros::AutoComplete
-  include ActionController::Macros::InPlaceEditing
+  include ActionController::RequestForgeryProtection
 end

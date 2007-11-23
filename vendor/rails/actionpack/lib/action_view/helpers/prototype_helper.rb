@@ -45,6 +45,13 @@ module ActionView
       #     :url => { :action => "destroy", :id => post.id }
       #   link_to_remote(image_tag("refresh"), :update => "emails", 
       #     :url => { :action => "list_emails" })
+      # 
+      # You can override the generated HTML options by specifying a hash in
+      # <tt>options[:html]</tt>.
+      #  
+      #   link_to_remote "Delete this post", :update => "posts",
+      #     :url  => post_url(@post), :method => :delete, 
+      #     :html => { :class  => "destructive" } 
       #
       # You can also specify a hash for <tt>options[:update]</tt> to allow for
       # easy redirection of output to an other DOM element if a server-side 
@@ -129,8 +136,27 @@ module ActionView
       #                          default this is the current form, but
       #                          it could just as well be the ID of a
       #                          table row or any other DOM element.
-      def link_to_remote(name, options = {}, html_options = {})  
-        link_to_function(name, remote_function(options), html_options)
+      # <tt>:with</tt>::         A JavaScript expression specifying
+      #                          the parameters for the XMLHttpRequest.
+      #                          Any expressions should return a valid
+      #                          URL query string.
+      #
+      #                          Example:
+      #                          
+      #                            :with => "'name=' + $('name').value"
+      #
+      # You can generate a link that uses AJAX in the general case, while 
+      # degrading gracefully to plain link behavior in the absence of
+      # JavaScript by setting <tt>html_options[:href]</tt> to an alternate URL.
+      # Note the extra curly braces around the <tt>options</tt> hash separate
+      # it as the second parameter from <tt>html_options</tt>, the third.
+      #
+      # Example:
+      #   link_to_remote "Delete this post",
+      #     { :update => "posts", :url => { :action => "destroy", :id => post.id } },
+      #     :href => url_for(:action => "destroy", :id => post.id)
+      def link_to_remote(name, options = {}, html_options = nil)  
+        link_to_function(name, remote_function(options), html_options || options.delete(:html))
       end
 
       # Periodically calls the specified url (<tt>options[:url]</tt>) every 
@@ -180,16 +206,54 @@ module ActionView
         form_tag(options[:html].delete(:action) || url_for(options[:url]), options[:html], &block)
       end
 
-      # Works like form_remote_tag, but uses form_for semantics.
-      def remote_form_for(record_or_name, *args, &proc)
-        options = args.last.is_a?(Hash) ? args.pop : {}
+      # Creates a form that will submit using XMLHttpRequest in the background 
+      # instead of the regular reloading POST arrangement and a scope around a 
+      # specific resource that is used as a base for questioning about
+      # values for the fields.  
+      #
+      # === Resource 
+      #
+      # Example:
+      #   <% remote_form_for(@post) do |f| %>
+      #     ...
+      #   <% end %>
+      #
+      # This will expand to be the same as:
+      #
+      #   <% remote_form_for :post, @post, :url => post_path(@post), :html => { :method => :put, :class => "edit_post", :id => "edit_post_45" } do |f| %>
+      #     ...
+      #   <% end %>
+      #
+      # === Nested Resource 
+      #
+      # Example:
+      #   <% remote_form_for([@post, @comment]) do |f| %>
+      #     ...
+      #   <% end %>
+      #
+      # This will expand to be the same as:
+      #
+      #   <% remote_form_for :comment, @comment, :url => post_comment_path(@post, @comment), :html => { :method => :put, :class => "edit_comment", :id => "edit_comment_45" } do |f| %>
+      #     ...
+      #   <% end %>
+      #
+      # If you don't need to attach a form to a resource, then check out form_remote_tag.
+      #
+      # See FormHelper#form_for for additional semantics.
+      def remote_form_for(record_or_name_or_array, *args, &proc)
+        options = args.extract_options!
 
-        case record_or_name
+        case record_or_name_or_array
         when String, Symbol
-          object_name = record_or_name
+          object_name = record_or_name_or_array
+        when Array
+          object = record_or_name_or_array.last
+          object_name = ActionController::RecordIdentifier.singular_class_name(object)
+          apply_form_for_options!(record_or_name_or_array, options)
+          args.unshift object
         else
-          object      = record_or_name
-          object_name = ActionController::RecordIdentifier.singular_class_name(record_or_name)
+          object      = record_or_name_or_array
+          object_name = ActionController::RecordIdentifier.singular_class_name(record_or_name_or_array)
           apply_form_for_options!(object, options)
           args.unshift object
         end
@@ -270,7 +334,16 @@ module ActionView
       # <tt>:url</tt>::       +url_for+-style options for the action to call
       #                       when the field has changed.
       # <tt>:function</tt>::  Instead of making a remote call to a URL, you
-      #                       can specify a function to be called instead.
+      #                       can specify javascript code to be called instead.
+      #                       Note that the value of this option is used as the
+      #                       *body* of the javascript function, a function definition
+      #                       with parameters named element and value will be generated for you
+      #                       for example:
+      #                         observe_field("glass", :frequency => 1, :function => "alert('Element changed')")
+      #                       will generate:
+      #                         new Form.Element.Observer('glass', 1, function(element, value) {alert('Element changed')})
+      #                       The element parameter is the DOM element being observed, and the value is its value at the
+      #                       time the observer is triggered.
       # 
       # Additional options are:
       # <tt>:frequency</tt>:: The frequency (in seconds) at which changes to
@@ -466,7 +539,7 @@ module ActionView
           #                    element's existing content.
           # <tt>:bottom</tt>:: HTML is inserted inside the element, after the
           #                    element's existing content.
-          # <tt>:before</tt>:: HTML is inserted immediately preceeding the element.
+          # <tt>:before</tt>:: HTML is inserted immediately preceding the element.
           # <tt>:after</tt>::  HTML is inserted immediately following the element.
           #
           # +options_for_render+ may be either a string of HTML to insert, or a hash
@@ -693,6 +766,15 @@ module ActionView
         elsif options[:with]
           js_options['parameters'] = options[:with]
         end
+        
+        if protect_against_forgery?
+          if js_options['parameters']
+            js_options['parameters'] << " + '&"
+          else
+            js_options['parameters'] = "'"
+          end
+          js_options['parameters'] << "#{request_forgery_protection_token}=' + encodeURIComponent('#{escape_javascript form_authenticity_token}')"
+        end
       
         options_for_javascript(js_options)
       end
@@ -731,7 +813,7 @@ module ActionView
     end
 
     # Converts chained method calls on DOM proxy elements into JavaScript chains 
-    class JavaScriptProxy < Builder::BlankSlate #:nodoc:
+    class JavaScriptProxy < BasicObject #:nodoc:
       def initialize(generator, root = nil)
         @generator = generator
         @generator << root if root
@@ -813,7 +895,7 @@ module ActionView
         true
       end
 
-      def to_json
+      def to_json(options = nil)
         @variable
       end
       

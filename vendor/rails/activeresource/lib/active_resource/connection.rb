@@ -14,9 +14,14 @@ module ActiveResource
     end
 
     def to_s
-      "Failed with #{response.code}"
+      "Failed with #{response.code} #{response.message if response.respond_to?(:message)}"
     end
   end
+
+  # 3xx Redirection
+  class Redirection < ConnectionError # :nodoc:
+    def to_s; response['Location'] ? "#{super} => #{response['Location']}" : super; end    
+  end 
 
   # 4xx Client Error
   class ClientError < ConnectionError; end # :nodoc:
@@ -42,23 +47,20 @@ module ActiveResource
   # services.
   class Connection
     attr_reader :site
+    attr_accessor :format
 
     class << self
       def requests
         @@requests ||= []
       end
-      
-      def default_header
-        class << self ; attr_reader :default_header end
-        @default_header = { 'Content-Type' => 'application/xml' }
-      end
     end
 
     # The +site+ parameter is required and will set the +site+
     # attribute to the URI for the remote resource service.
-    def initialize(site)
+    def initialize(site, format = ActiveResource::Formats[:xml])
       raise ArgumentError, 'Missing site URI' unless site
       self.site = site
+      self.format = format
     end
 
     # Set URI for remote service.
@@ -69,7 +71,7 @@ module ActiveResource
     # Execute a GET request.
     # Used to get (find) resources.
     def get(path, headers = {})
-      xml_from_response(request(:get, path, build_request_headers(headers)))
+      format.decode(request(:get, path, build_request_headers(headers)).body)
     end
 
     # Execute a DELETE request (see HTTP protocol documentation if unfamiliar).
@@ -90,9 +92,6 @@ module ActiveResource
       request(:post, path, body.to_s, build_request_headers(headers))
     end
 
-    def xml_from_response(response)
-      from_xml_data(Hash.from_xml(response.body))
-    end
 
     private
       # Makes request to remote service.
@@ -107,6 +106,8 @@ module ActiveResource
       # Handles response and error codes from remote service.
       def handle_response(response)
         case response.code.to_i
+          when 301,302
+            raise(Redirection.new(response))
           when 200...400
             response
           when 404
@@ -126,21 +127,22 @@ module ActiveResource
         end
       end
 
-      # Creates new (or uses currently instantiated) Net::HTTP instance for communication with
+      # Creates new Net::HTTP instance for communication with
       # remote service and resources.
       def http
-        unless @http
-          @http             = Net::HTTP.new(@site.host, @site.port)
-          @http.use_ssl     = @site.is_a?(URI::HTTPS)
-          @http.verify_mode = OpenSSL::SSL::VERIFY_NONE if @http.use_ssl
-        end
+        http             = Net::HTTP.new(@site.host, @site.port)
+        http.use_ssl     = @site.is_a?(URI::HTTPS)
+        http.verify_mode = OpenSSL::SSL::VERIFY_NONE if http.use_ssl
+        http
+      end
 
-        @http
+      def default_header
+        @default_header ||= { 'Content-Type' => format.mime_type }
       end
       
       # Builds headers for request to remote service.
       def build_request_headers(headers)
-        authorization_header.update(self.class.default_header).update(headers)
+        authorization_header.update(default_header).update(headers)
       end
       
       # Sets authorization header; authentication information is pulled from credentials provided with site URI.
@@ -150,16 +152,6 @@ module ActiveResource
 
       def logger #:nodoc:
         ActiveResource::Base.logger
-      end
-
-      # Manipulate from_xml Hash, because xml_simple is not exactly what we
-      # want for ActiveResource.
-      def from_xml_data(data)
-        if data.is_a?(Hash) && data.keys.size == 1
-          data.values.first
-        else
-          data
-        end
       end
   end
 end

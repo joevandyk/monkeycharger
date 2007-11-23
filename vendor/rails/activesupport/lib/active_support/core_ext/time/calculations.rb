@@ -4,12 +4,14 @@ module ActiveSupport #:nodoc:
       # Enables the use of time calculations within Time itself
       module Calculations
         def self.included(base) #:nodoc:
-          base.extend(ClassMethods)
+          base.extend ClassMethods
 
-          base.send(:alias_method, :plus_without_duration, :+)
-          base.send(:alias_method, :+, :plus_with_duration)
-          base.send(:alias_method, :minus_without_duration, :-)
-          base.send(:alias_method, :-, :minus_with_duration)
+          base.class_eval do
+            alias_method :plus_without_duration, :+
+            alias_method :+, :plus_with_duration
+            alias_method :minus_without_duration, :-
+            alias_method :-, :minus_with_duration
+          end
         end
 
         module ClassMethods
@@ -27,13 +29,13 @@ module ActiveSupport #:nodoc:
             end
           end
 
-          # Returns a new Time if requested year can be accomodated by Ruby's Time class
+          # Returns a new Time if requested year can be accommodated by Ruby's Time class
           # (i.e., if year is within either 1970..2038 or 1902..2038, depending on system architecture);
           # otherwise returns a DateTime
           def time_with_datetime_fallback(utc_or_local, year, month=1, day=1, hour=0, min=0, sec=0, usec=0)
             ::Time.send(utc_or_local, year, month, day, hour, min, sec, usec)
           rescue
-            offset = if utc_or_local.to_sym == :utc then 0 else ::DateTime.now.offset end
+            offset = utc_or_local.to_sym == :local ? ::DateTime.local_offset : 0
             ::DateTime.civil(year, month, day, hour, min, sec, offset, 0)
           end
 
@@ -61,7 +63,7 @@ module ActiveSupport #:nodoc:
             self.utc? ? :utc_time : :local_time,
             options[:year]  || self.year,
             options[:month] || self.month,
-            options[:day]   || options[:mday] || self.day, # mday is deprecated
+            options[:day]   || self.day,
             options[:hour]  || self.hour,
             options[:min]   || (options[:hour] ? 0 : self.min),
             options[:sec]   || ((options[:hour] || options[:min]) ? 0 : self.sec),
@@ -70,12 +72,12 @@ module ActiveSupport #:nodoc:
         end
 
         # Uses Date to provide precise Time calculations for years, months, and days.  The +options+ parameter takes a hash with
-        # any of these keys: :months, :days, :years.
+        # any of these keys: :years, :months, :weeks, :days, :hours, :minutes, :seconds.
         def advance(options)
-          d = ::Date.new(year + (options.delete(:years) || 0), month, day)
-          d = d >> options.delete(:months) if options[:months]
-          d = d +  options.delete(:days)   if options[:days]
-          change(options.merge(:year => d.year, :month => d.month, :mday => d.day))
+          d = to_date.advance(options)
+          time_advanced_by_date = change(:year => d.year, :month => d.month, :day => d.day)
+          seconds_to_advance = (options[:seconds] || 0) + (options[:minutes] || 0) * 60 + (options[:hours] || 0) * 3600
+          seconds_to_advance == 0 ? time_advanced_by_date : time_advanced_by_date.since(seconds_to_advance)
         end
 
         # Returns a new Time representing the time a number of seconds ago, this is basically a wrapper around the Numeric extension
@@ -85,7 +87,7 @@ module ActiveSupport #:nodoc:
         end
 
         # Returns a new Time representing the time a number of seconds since the instance time, this is basically a wrapper around
-        #the Numeric extension. Do not use this method in combination with x.months, use months_since instead!
+        # the Numeric extension. Do not use this method in combination with x.months, use months_since instead!
         def since(seconds)
           initial_dst = self.dst? ? 1 : 0
           f = seconds.since(self)
@@ -98,39 +100,22 @@ module ActiveSupport #:nodoc:
 
         # Returns a new Time representing the time a number of specified months ago
         def months_ago(months)
-          months_since(-months)
+          advance(:months => -months)
         end
 
+        # Returns a new Time representing the time a number of specified months in the future
         def months_since(months)
-          year, month, mday = self.year, self.month, self.mday
-
-          month += months
-
-          # in case months is negative
-          while month < 1
-            month += 12
-            year -= 1
-          end
-
-          # in case months is positive
-          while month > 12
-            month -= 12
-            year += 1
-          end
-
-          max = ::Time.days_in_month(month, year)
-          mday = max if mday > max
-
-          change(:year => year, :month => month, :mday => mday)
+          advance(:months => months)
         end
 
         # Returns a new Time representing the time a number of specified years ago
         def years_ago(years)
-          change(:year => self.year - years)
+          advance(:years => -years)
         end
 
+        # Returns a new Time representing the time a number of specified years in the future
         def years_since(years)
-          change(:year => self.year + years)
+          advance(:years => years)
         end
 
         # Short-hand for years_ago(1)
@@ -184,7 +169,7 @@ module ActiveSupport #:nodoc:
         # Returns a new Time representing the start of the month (1st of the month, 0:00)
         def beginning_of_month
           #self - ((self.mday-1).days + self.seconds_since_midnight)
-          change(:mday => 1,:hour => 0, :min => 0, :sec => 0, :usec => 0)
+          change(:day => 1,:hour => 0, :min => 0, :sec => 0, :usec => 0)
         end
         alias :at_beginning_of_month :beginning_of_month
 
@@ -192,7 +177,7 @@ module ActiveSupport #:nodoc:
         def end_of_month
           #self - ((self.mday-1).days + self.seconds_since_midnight)
           last_day = ::Time.days_in_month( self.month, self.year )
-          change(:mday => last_day,:hour => 0, :min => 0, :sec => 0, :usec => 0)
+          change(:day => last_day,:hour => 0, :min => 0, :sec => 0, :usec => 0)
         end
         alias :at_end_of_month :end_of_month
 		
@@ -204,7 +189,7 @@ module ActiveSupport #:nodoc:
 
         # Returns  a new Time representing the start of the year (1st of january, 0:00)
         def beginning_of_year
-          change(:month => 1,:mday => 1,:hour => 0, :min => 0, :sec => 0, :usec => 0)
+          change(:month => 1,:day => 1,:hour => 0, :min => 0, :sec => 0, :usec => 0)
         end
         alias :at_beginning_of_year :beginning_of_year
 

@@ -30,7 +30,7 @@ module ActionView
       # variable in the generated JavaScript execution context. This can be 
       # used for example with drop_receiving_element:
       #
-      #   <%= drop_receving_element (...), :loading => visual_effect(:fade) %>
+      #   <%= drop_receiving_element (...), :loading => visual_effect(:fade) %>
       #
       # This would fade the element that was dropped on the drop receiving 
       # element.
@@ -50,6 +50,10 @@ module ActionView
           "'#{js_options[:queue]}'"
         end if js_options[:queue]
         
+        [:endcolor, :direction, :startcolor, :scaleMode, :restorecolor].each do |option|
+          js_options[option] = "'#{js_options[option]}'" if js_options[option]
+        end
+
         if TOGGLE_EFFECTS.include? name.to_sym
           "Effect.toggle(#{element},'#{name.to_s.gsub(/^toggle_/,'')}',#{options_for_javascript(js_options)});"
         else

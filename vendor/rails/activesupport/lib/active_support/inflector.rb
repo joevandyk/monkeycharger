@@ -106,7 +106,7 @@ module Inflector
   def pluralize(word)
     result = word.to_s.dup
 
-    if inflections.uncountables.include?(result.downcase)
+    if word.empty? || inflections.uncountables.include?(result.downcase)
       result
     else
       inflections.plurals.each { |(rule, replacement)| break if result.gsub!(rule, replacement) }
@@ -270,9 +270,9 @@ module Inflector
       "#{number}th"
     else
       case number.to_i % 10
-        when 1: "#{number}st"
-        when 2: "#{number}nd"
-        when 3: "#{number}rd"
+        when 1; "#{number}st"
+        when 2; "#{number}nd"
+        when 3; "#{number}rd"
         else    "#{number}th"
       end
     end

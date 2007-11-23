@@ -43,7 +43,7 @@ class AppGenerator < Rails::Generator::Base
       m.file "README",         "README"
 
       # Application
-      m.template "helpers/application.rb",        "app/controllers/application.rb", :assigns => { :app_name => @app_name }
+      m.template "helpers/application.rb",        "app/controllers/application.rb", :assigns => { :app_name => @app_name, :app_secret => md5.hexdigest }
       m.template "helpers/application_helper.rb", "app/helpers/application_helper.rb"
       m.template "helpers/test_helper.rb",        "test/test_helper.rb"
 
@@ -67,7 +67,7 @@ class AppGenerator < Rails::Generator::Base
       m.file "environments/test.rb",        "config/environments/test.rb"
 
       # Scripts
-      %w( about console destroy generate performance/benchmarker performance/profiler process/reaper process/spawner process/inspector runner server plugin ).each do |file|
+      %w( about console destroy generate performance/benchmarker performance/profiler performance/request process/reaper process/spawner process/inspector runner server plugin ).each do |file|
         m.file "bin/#{file}", "script/#{file}", script_options
       end
 
@@ -77,7 +77,7 @@ class AppGenerator < Rails::Generator::Base
       m.file "dispatches/dispatch.fcgi", "public/dispatch.fcgi", dispatcher_options
 
       # HTML files
-      %w(404 500 index).each do |file|
+      %w(404 422 500 index).each do |file|
         m.template "html/#{file}.html", "public/#{file}.html"
       end
 

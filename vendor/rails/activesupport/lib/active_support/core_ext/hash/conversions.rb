@@ -1,7 +1,8 @@
 require 'date'
-require 'xml_simple'
 require 'cgi'
 require 'base64'
+require 'builder'
+require 'xmlsimple'
 
 # Extensions needed for Hash#to_query
 class Object
@@ -46,6 +47,7 @@ module ActiveSupport #:nodoc:
     module Hash #:nodoc:
       module Conversions
         XML_TYPE_NAMES = {
+          "Symbol"     => "symbol",
           "Fixnum"     => "integer",
           "Bignum"     => "integer",
           "BigDecimal" => "decimal",
@@ -58,14 +60,18 @@ module ActiveSupport #:nodoc:
         } unless defined?(XML_TYPE_NAMES)
 
         XML_FORMATTING = {
+          "symbol"   => Proc.new { |symbol| symbol.to_s },
           "date"     => Proc.new { |date| date.to_s(:db) },
           "datetime" => Proc.new { |time| time.xmlschema },
           "binary"   => Proc.new { |binary| Base64.encode64(binary) },
           "yaml"     => Proc.new { |yaml| yaml.to_yaml }
         } unless defined?(XML_FORMATTING)
 
+        # TODO: use Time.xmlschema instead of Time.parse;
+        #       use regexp instead of Date.parse
         unless defined?(XML_PARSING)
           XML_PARSING = {
+            "symbol"       => Proc.new  { |symbol|  symbol.to_sym },
             "date"         => Proc.new  { |date|    ::Date.parse(date) },
             "datetime"     => Proc.new  { |time|    ::Time.parse(time).utc },
             "integer"      => Proc.new  { |integer| integer.to_i },
@@ -169,7 +175,7 @@ module ActiveSupport #:nodoc:
               case value.class.to_s
                 when 'Hash'
                   if value.has_key?("__content__")
-                    content = translate_xml_entities(value["__content__"])
+                    content = value["__content__"]
                     if parser = XML_PARSING[value["type"]]
                       if parser.arity == 2
                         XML_PARSING[value["type"]].call(content, value)
@@ -224,14 +230,6 @@ module ActiveSupport #:nodoc:
                 else
                   raise "can't typecast #{value.class.name} - #{value.inspect}"
               end
-            end
-
-            def translate_xml_entities(value)
-              value.gsub(/&lt;/,   "<").
-                    gsub(/&gt;/,   ">").
-                    gsub(/&quot;/, '"').
-                    gsub(/&apos;/, "'").
-                    gsub(/&amp;/,  "&")
             end
 
             def undasherize_keys(params)

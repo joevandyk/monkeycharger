@@ -13,6 +13,7 @@ class NumericExtTimeAndDateTimeTest < Test::Unit::TestCase
     }
   end
 
+  # FIXME: ruby 1.9
   def test_units
     @seconds.each do |actual, expected|
       assert_equal expected, actual
@@ -80,6 +81,11 @@ class NumericExtTimeAndDateTimeTest < Test::Unit::TestCase
     assert_equal 30.days.to_i.since(@dtnow), 1.month.to_i.since(@dtnow)
     assert_equal 365.25.days.to_f.since(@dtnow), 1.year.to_f.since(@dtnow)    
   end
+  
+  def test_add_one_year_to_leap_day
+    assert_equal Time.utc(2005,2,28,15,15,10), Time.utc(2004,2,29,15,15,10) + 1.year
+    assert_equal DateTime.civil(2005,2,28,15,15,10), DateTime.civil(2004,2,29,15,15,10) + 1.year
+  end
 end
 
 class NumericExtDateTest < Test::Unit::TestCase
@@ -98,6 +104,10 @@ class NumericExtDateTest < Test::Unit::TestCase
   def test_chaining_duration_operations
     assert_equal @today.advance(:days => 2).advance(:months => -3), @today + 2.days - 3.months
     assert_equal @today.advance(:days => 1).advance(:months => 2), @today + 1.day + 2.months
+  end
+  
+  def test_add_one_year_to_leap_day
+    assert_equal Date.new(2005,2,28), Date.new(2004,2,29) + 1.year
   end
 end
 
@@ -119,5 +129,20 @@ class NumericExtSizeTest < Test::Unit::TestCase
     relationships.each do |left, right|
       assert_equal right, left
     end
+  end
+  
+  def test_units_as_bytes_independently
+    assert_equal 3145728, 3.megabytes
+    assert_equal 3145728, 3.megabyte
+    assert_equal 3072, 3.kilobytes
+    assert_equal 3072, 3.kilobyte
+    assert_equal 3221225472, 3.gigabytes
+    assert_equal 3221225472, 3.gigabyte
+    assert_equal 3298534883328, 3.terabytes
+    assert_equal 3298534883328, 3.terabyte
+    assert_equal 3377699720527872, 3.petabytes
+    assert_equal 3377699720527872, 3.petabyte
+    assert_equal 3458764513820540928, 3.exabytes
+    assert_equal 3458764513820540928, 3.exabyte
   end
 end

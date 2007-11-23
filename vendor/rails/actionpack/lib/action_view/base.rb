@@ -1,4 +1,15 @@
 require 'erb'
+require 'builder'
+
+class ERB
+  module Util
+    HTML_ESCAPE = { '&' => '&amp;', '"' => '&quot;', '>' => '&gt;', '<' => '&lt;' }
+
+    def html_escape(s)
+      s.to_s.gsub(/[&\"><]/) { |special| HTML_ESCAPE[special] }
+    end
+  end
+end
 
 module ActionView #:nodoc:
   class ActionViewError < StandardError #:nodoc:
@@ -188,6 +199,8 @@ module ActionView #:nodoc:
     
     @@erb_variable = '_erbout'
     cattr_accessor :erb_variable
+    
+    delegate :request_forgery_protection_token, :to => :controller
 
     @@template_handlers = HashWithIndifferentAccess.new
  
@@ -210,6 +223,10 @@ module ActionView #:nodoc:
     @@cached_template_extension = {}
     # Maps template paths / extensions to 
     @@cached_base_paths = {}
+
+    # Cache public asset paths
+    cattr_reader :computed_public_paths
+    @@computed_public_paths = {}
 
     @@templates_requiring_setup = Set.new(%w(builder rxml rjs))
 
@@ -270,7 +287,7 @@ module ActionView #:nodoc:
             raise ActionViewError, "No #{template_handler_preferences.to_sentence} template found for #{template_path} in #{view_paths.inspect}"
           end
           template_file_name = full_template_path(template_path, template_extension)
-          template_extension = template_extension.gsub(/^\w+\./, '') # strip off any formats
+          template_extension = template_extension.gsub(/^.+\./, '') # strip off any formats
         end
       else
         template_file_name = template_path
@@ -304,7 +321,17 @@ module ActionView #:nodoc:
       elsif options.is_a?(Hash)
         options = options.reverse_merge(:type => :erb, :locals => {}, :use_full_path => true)
 
-        if options[:file]
+        if options[:layout]
+          path, partial_name = partial_pieces(options.delete(:layout))
+
+          if block_given?
+            @content_for_layout = capture(&block)
+            concat(render(options.merge(:partial => "#{path}/#{partial_name}")), block.binding)
+          else
+            @content_for_layout = render(options)
+            render(options.merge(:partial => "#{path}/#{partial_name}"))
+          end
+        elsif options[:file]
           render_file(options[:file], options[:use_full_path], options[:locals])
         elsif options[:partial] && options[:collection]
           render_partial_collection(options[:partial], options[:collection], options[:spacer_template], options[:locals])
@@ -359,7 +386,7 @@ module ActionView #:nodoc:
     #
     def full_template_path(template_path, extension)
       if @@cache_template_extensions
-        (@@cached_base_paths[template_path] ||= {})[extension.to_s] = find_full_template_path(template_path, extension)
+        (@@cached_base_paths[template_path] ||= {})[extension.to_s] ||= find_full_template_path(template_path, extension)
       else
         find_full_template_path(template_path, extension)
       end
@@ -463,7 +490,9 @@ module ActionView #:nodoc:
 
       # Determines the template's file extension, such as rhtml, rxml, or rjs.
       def find_template_extension_for(template_path)
-        find_template_extension_from_handler(template_path, true) || find_template_extension_from_handler(template_path)
+        find_template_extension_from_handler(template_path, true) ||
+        find_template_extension_from_handler(template_path) ||
+        find_template_extension_from_first_render()
       end
 
       def find_template_extension_from_handler(template_path, formatted = nil)
@@ -483,6 +512,11 @@ module ActionView #:nodoc:
           end
         end
         nil
+      end
+      
+      # Determine the template extension from the <tt>@first_render</tt> filename
+      def find_template_extension_from_first_render
+        File.basename(@first_render.to_s)[/^[^.]+\.(.+)$/, 1]
       end
 
       # This method reads a template file.
@@ -545,7 +579,8 @@ module ActionView #:nodoc:
         if template_requires_setup?(extension)
           body = case extension.to_sym
             when :rxml, :builder
-              "controller.response.content_type ||= Mime::XML\n" +
+              content_type_handler = (controller.respond_to?(:response) ? "controller.response" : "controller")
+              "#{content_type_handler}.content_type ||= Mime::XML\n" +
               "xml = Builder::XmlMarkup.new(:indent => 2)\n" +
               template +
               "\nxml.target!\n"

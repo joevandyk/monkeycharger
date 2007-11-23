@@ -23,7 +23,7 @@ module ActionController #:nodoc:
   class TestRequest < AbstractRequest #:nodoc:
     attr_accessor :cookies, :session_options
     attr_accessor :query_parameters, :request_parameters, :path, :session, :env
-    attr_accessor :host
+    attr_accessor :host, :user_agent
 
     def initialize(query_parameters = nil, request_parameters = nil, session = nil)
       @query_parameters   = query_parameters || {}
@@ -133,6 +133,7 @@ module ActionController #:nodoc:
       def initialize_default_values
         @host                    = "test.host"
         @request_uri             = "/"
+        @user_agent              = "Rails Testing"
         self.remote_addr         = "0.0.0.0"        
         @env["SERVER_PORT"]      = 80
         @env['REQUEST_METHOD']   = "GET"
@@ -329,6 +330,9 @@ module ActionController #:nodoc:
   #
   # Usage example, within a functional test:
   #   post :change_avatar, :avatar => ActionController::TestUploadedFile.new(Test::Unit::TestCase.fixture_path + '/files/spongebob.png', 'image/png')
+  # 
+  # Pass a true third parameter to ensure the uploaded file is opened in binary mode (only required for Windows):
+  #   post :change_avatar, :avatar => ActionController::TestUploadedFile.new(Test::Unit::TestCase.fixture_path + '/files/spongebob.png', 'image/png', :binary)
   require 'tempfile'
   class TestUploadedFile
     # The filename, *not* including the path, of the "uploaded" file
@@ -337,11 +341,12 @@ module ActionController #:nodoc:
     # The content type of the "uploaded" file
     attr_reader :content_type
 
-    def initialize(path, content_type = Mime::TEXT)
+    def initialize(path, content_type = Mime::TEXT, binary = false)
       raise "#{path} file does not exist" unless File.exist?(path)
       @content_type = content_type
       @original_filename = path.sub(/^.*#{File::SEPARATOR}([^#{File::SEPARATOR}]+)$/) { $1 }
       @tempfile = Tempfile.new(@original_filename)
+      @tempfile.binmode if binary
       FileUtils.copy_file(path, @tempfile.path)
     end
 
@@ -352,7 +357,7 @@ module ActionController #:nodoc:
     alias local_path path
 
     def method_missing(method_name, *args, &block) #:nodoc:
-      @tempfile.send(method_name, *args, &block)
+      @tempfile.send!(method_name, *args, &block)
     end
   end
 
@@ -374,7 +379,7 @@ module ActionController #:nodoc:
       # Sanity check for required instance variables so we can give an
       # understandable error message.
       %w(@controller @request @response).each do |iv_name|
-        if !instance_variables.include?(iv_name) || instance_variable_get(iv_name).nil?
+        if !(instance_variables.include?(iv_name) || instance_variables.include?(iv_name.to_sym)) || instance_variable_get(iv_name).nil?
           raise "#{iv_name} is nil: make sure you set it in your test's setup method."
         end
       end
@@ -397,7 +402,7 @@ module ActionController #:nodoc:
     def xml_http_request(request_method, action, parameters = nil, session = nil, flash = nil)
       @request.env['HTTP_X_REQUESTED_WITH'] = 'XMLHttpRequest'
       @request.env['HTTP_ACCEPT'] = 'text/javascript, text/html, application/xml, text/xml, */*'
-      returning self.send(request_method, action, parameters, session, flash) do
+      returning send!(request_method, action, parameters, session, flash) do
         @request.env.delete 'HTTP_X_REQUESTED_WITH'
         @request.env.delete 'HTTP_ACCEPT'
       end
@@ -439,7 +444,7 @@ module ActionController #:nodoc:
 
     def build_request_uri(action, parameters)
       unless @request.env['REQUEST_URI']
-        options = @controller.send(:rewrite_options, parameters)
+        options = @controller.send!(:rewrite_options, parameters)
         options.update(:only_path => true, :action => action)
 
         url = ActionController::UrlRewriter.new(@request, parameters)
@@ -448,7 +453,8 @@ module ActionController #:nodoc:
     end
 
     def html_document
-      @html_document ||= HTML::Document.new(@response.body)
+      xml = @response.content_type =~ /xml$/
+      @html_document ||= HTML::Document.new(@response.body, false, xml)
     end
 
     def find_tag(conditions)
@@ -460,16 +466,20 @@ module ActionController #:nodoc:
     end
 
     def method_missing(selector, *args)
-      return @controller.send(selector, *args) if ActionController::Routing::Routes.named_routes.helpers.include?(selector)
+      return @controller.send!(selector, *args) if ActionController::Routing::Routes.named_routes.helpers.include?(selector)
       return super
     end
     
     # Shortcut for ActionController::TestUploadedFile.new(Test::Unit::TestCase.fixture_path + path, type). Example:
     #   post :change_avatar, :avatar => fixture_file_upload('/files/spongebob.png', 'image/png')
-    def fixture_file_upload(path, mime_type = nil)
+    #
+    # To upload binary files on Windows, pass :binary as the last parameter. This will not affect other platforms.
+    #   post :change_avatar, :avatar => fixture_file_upload('/files/spongebob.png', 'image/png', :binary)
+    def fixture_file_upload(path, mime_type = nil, binary = false)
       ActionController::TestUploadedFile.new(
         Test::Unit::TestCase.respond_to?(:fixture_path) ? Test::Unit::TestCase.fixture_path + path : path, 
-        mime_type
+        mime_type,
+        binary
       )
     end
 
@@ -492,15 +502,15 @@ module ActionController #:nodoc:
     #
     def with_routing
       real_routes = ActionController::Routing::Routes
-      ActionController::Routing.send :remove_const, :Routes
+      ActionController::Routing.module_eval { remove_const :Routes }
 
       temporary_routes = ActionController::Routing::RouteSet.new
-      ActionController::Routing.send :const_set, :Routes, temporary_routes
-  
+      ActionController::Routing.module_eval { const_set :Routes, temporary_routes }
+
       yield temporary_routes
     ensure
       if ActionController::Routing.const_defined? :Routes
-        ActionController::Routing.send(:remove_const, :Routes) 
+        ActionController::Routing.module_eval { remove_const :Routes }
       end
       ActionController::Routing.const_set(:Routes, real_routes) if real_routes
     end

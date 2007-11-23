@@ -66,6 +66,7 @@ module ActionController
           raise ArgumentError, "First argument is either selector or element to select, but nil found. Perhaps you called assert_select with an element that does not exist?"
         elsif @selected
           matches = []
+
           @selected.each do |selected|
             subset = css_select(selected, HTML::Selector.new(arg.dup, args.dup))
             subset.each do |match|
@@ -325,14 +326,16 @@ module ActionController
       # that update or insert an element with that identifier.
       #
       # Use the first argument to narrow down assertions to only statements
-      # of that type. Possible values are +:replace+, +:replace_html+, +:show+,
-      # +:hide+, +:toggle+, +:remove+ and +:insert_html+.
+      # of that type. Possible values are <tt>:replace</tt>, <tt>:replace_html</tt>, 
+      # <tt>:show</tt>, <tt>:hide</tt>, <tt>:toggle</tt>, <tt>:remove</tt> and
+      # <tt>:insert_html</tt>.
       #
-      # Use the argument +:insert+ followed by an insertion position to narrow
+      # Use the argument <tt>:insert</tt> followed by an insertion position to narrow
       # down the assertion to only statements that insert elements in that
-      # position. Possible values are +:top+, +:bottom+, +:before+ and +:after+.
+      # position. Possible values are <tt>:top</tt>, <tt>:bottom</tt>, <tt>:before</tt>
+      # and <tt>:after</tt>.
       #
-      # Using the +:remove+ statement, you will be able to pass a block, but it will
+      # Using the <tt>:remove</tt> statement, you will be able to pass a block, but it will
       # be ignored as there is no HTML passed for this statement.
       #
       # === Using blocks
@@ -387,6 +390,7 @@ module ActionController
         # any RJS statement.
         if arg.is_a?(Symbol)
           rjs_type = arg
+
           if rjs_type == :insert
             arg = args.shift
             insertion = "insert_#{arg}".to_sym
@@ -433,6 +437,7 @@ module ActionController
               ""
             end
         end
+
         if matches
           if block_given? && !([:remove, :show, :hide, :toggle].include? rjs_type)
             begin
@@ -563,9 +568,11 @@ module ActionController
         # page, or from all the RJS statements, depending on the type of response.
         def response_from_page_or_rjs()
           content_type = @response.content_type
+
           if content_type && content_type =~ /text\/javascript/
             body = @response.body.dup
             root = HTML::Node.new(nil)
+
             while true
               next if body.sub!(RJS_PATTERN_EVERYTHING) do |match|
                 html = unescape_rjs($3)
@@ -575,6 +582,7 @@ module ActionController
               end
               break
             end
+
             root
           else
             html_document.root
@@ -585,6 +593,7 @@ module ActionController
         def unescape_rjs(rjs_string)
           # RJS encodes double quotes and line breaks.
           unescaped= rjs_string.gsub('\"', '"')
+          unescaped.gsub!(/\\\//, '/')
           unescaped.gsub!('\n', "\n")
           unescaped.gsub!('\076', '>')
           unescaped.gsub!('\074', '<')
@@ -592,7 +601,6 @@ module ActionController
           unescaped.gsub!(RJS_PATTERN_UNICODE_ESCAPED_CHAR) {|u| [$1.hex].pack('U*')}
           unescaped
         end
-
     end
   end
 end

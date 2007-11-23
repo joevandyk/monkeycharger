@@ -20,7 +20,7 @@ module ActionView
       #
       # ==== Options
       # * <tt>:anchor</tt> -- specifies the anchor name to be appended to the path.
-      # * <tt>:only_path</tt> --  if true, returns the relative URL (omitting the protocol, host name, and port) (<tt>true</tt> by default)
+      # * <tt>:only_path</tt> --  if true, returns the relative URL (omitting the protocol, host name, and port) (<tt>true</tt> by default unless <tt>:host</tt> is specified)
       # * <tt>:trailing_slash</tt> --  if true, adds a trailing slash, as in "/archive/2005/". Note that this
       #   is currently not recommended since it breaks caching.
       # * <tt>:host</tt> -- overrides the default (current) host if provided
@@ -65,7 +65,8 @@ module ActionView
       def url_for(options = {})
         case options
         when Hash
-          options = { :only_path => true }.update(options.symbolize_keys)
+          show_path =  options[:host].nil? ? true : false
+          options = { :only_path => show_path }.update(options.symbolize_keys)
           escape  = options.key?(:escape) ? options.delete(:escape) : true
           url     = @controller.send(:url_for, options)
         when String
@@ -85,8 +86,9 @@ module ActionView
       # of +options+. See the valid options in the documentation for
       # url_for. It's also possible to pass a string instead
       # of an options hash to get a link tag that uses the value of the string as the
-      # href for the link. If nil is passed as a name, the link itself will become
-      # the name.
+      # href for the link, or use +:back+ to link to the referrer - a JavaScript back
+      # link will be used in place of a referrer if none exists. If nil is passed as
+      # a name, the link itself will become the name.
       #
       # ==== Options
       # * <tt>:confirm => 'question?'</tt> -- This will add a JavaScript confirm
@@ -102,16 +104,16 @@ module ActionView
       #   in dangerous actions like deleting a record (which search bots can follow
       #   while spidering your site). Supported verbs are :post, :delete and :put.
       #   Note that if the user has JavaScript disabled, the request will fall back
-      #   to using GET. If you are relying on the POST behavior, your should check
-      #   for it in your controllers action by using the request objects methods
+      #   to using GET. If you are relying on the POST behavior, you should check
+      #   for it in your controller's action by using the request object's methods
       #   for post?, delete? or put?.
       # * The +html_options+ will accept a hash of html attributes for the link tag.
       #
       # Note that if the user has JavaScript disabled, the request will fall back
       # to using GET. If :href=>'#' is used and the user has JavaScript disabled
       # clicking the link will have no effect. If you are relying on the POST 
-      # behavior, your should check for it in your controllers action by using the 
-      # request objects methods for post?, delete? or put?. 
+      # behavior, your should check for it in your controller's action by using the 
+      # request object's methods for post?, delete? or put?. 
       #
       # You can mix and match the +html_options+ with the exception of
       # :popup and :method which will raise an ActionView::ActionViewError
@@ -133,7 +135,14 @@ module ActionView
       #        var m = document.createElement('input'); m.setAttribute('type', 'hidden'); m.setAttribute('name', '_method'); 
       #        m.setAttribute('value', 'delete'); f.appendChild(m);f.submit(); };return false;">Delete Image</a>
       def link_to(name, options = {}, html_options = nil)
-        url = options.is_a?(String) ? options : self.url_for(options)
+        url = case options
+          when String
+            options
+          when :back
+            @controller.request.env["HTTP_REFERER"] || 'javascript:history.back()'
+          else
+            self.url_for(options)
+          end
 
         if html_options
           html_options = html_options.stringify_keys
@@ -200,7 +209,12 @@ module ActionView
         end
 
         form_method = method.to_s == 'get' ? 'get' : 'post'
-
+        
+        request_token_tag = ''
+        if form_method == 'post' && protect_against_forgery?
+          request_token_tag = tag(:input, :type => "hidden", :name => request_forgery_protection_token.to_s, :value => form_authenticity_token)
+        end
+        
         if confirm = html_options.delete("confirm")
           html_options["onclick"] = "return #{confirm_javascript_function(confirm)};"
         end
@@ -211,7 +225,7 @@ module ActionView
         html_options.merge!("type" => "submit", "value" => name)
 
         "<form method=\"#{form_method}\" action=\"#{escape_once url}\" class=\"button-to\"><div>" +
-          method_tag + tag("input", html_options) + "</div></form>"
+          method_tag + tag("input", html_options) + request_token_tag + "</div></form>"
       end
 
 
@@ -471,6 +485,10 @@ module ActionView
             submit_function << "m.setAttribute('name', '_method'); m.setAttribute('value', '#{method}'); f.appendChild(m);"
           end
 
+          if protect_against_forgery?
+            submit_function << "var s = document.createElement('input'); s.setAttribute('type', 'hidden'); "
+            submit_function << "s.setAttribute('name', '#{request_forgery_protection_token}'); s.setAttribute('value', '#{escape_javascript form_authenticity_token}'); f.appendChild(s);"
+          end
           submit_function << "f.submit();"
         end
 

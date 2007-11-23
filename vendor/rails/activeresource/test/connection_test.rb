@@ -13,7 +13,7 @@ class ConnectionTest < Test::Unit::TestCase
     @people_empty = [ ].to_xml(:root => 'people-empty-elements')
     @matz = @matz.to_xml(:root => 'person')
     @david = @david.to_xml(:root => 'person')
-    @header = {'key' => 'value'}
+    @header = {'key' => 'value'}.freeze
 
     @default_request_headers = { 'Content-Type' => 'application/xml' }
     ActiveResource::HttpMock.respond_to do |mock|
@@ -66,12 +66,12 @@ class ConnectionTest < Test::Unit::TestCase
     end
   end
 
-  ResponseHeaderStub = Struct.new(:code, 'Allow')
+  ResponseHeaderStub = Struct.new(:code, :message, 'Allow')
   def test_should_return_allowed_methods_for_method_no_allowed_exception
     begin
-      handle_response ResponseHeaderStub.new(405, "GET, POST")
+      handle_response ResponseHeaderStub.new(405, "HTTP Failed...", "GET, POST")
     rescue ActiveResource::MethodNotAllowed => e
-      assert_equal "Failed with 405", e.message
+      assert_equal "Failed with 405 HTTP Failed...", e.message
       assert_equal [:get, :post], e.allowed_methods
     end
   end
@@ -156,6 +156,6 @@ class ConnectionTest < Test::Unit::TestCase
     end
 
     def handle_response(response)
-      @conn.send(:handle_response, response)
+      @conn.send!(:handle_response, response)
     end
 end
