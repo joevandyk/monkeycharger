@@ -1,19 +1,21 @@
 class PreCommit::RspecOnRails < PreCommit
   def pre_commit
+    install_plugins
     check_dependencies
     used_railses = []
     VENDOR_DEPS.each do |dependency|
       rails_dir = File.expand_path(dependency[:checkout_path])
       rails_version = rails_version_from_dir(rails_dir)
       begin
-        rspec_pre_commit(rails_version)
+        rspec_pre_commit(rails_version, false)
         used_railses << rails_version
-      rescue => e
+      rescue Exception => e
         unless rails_version == 'edge'
           raise e
         end
       end
     end
+    uninstall_plugins
     puts "All specs passed against the following released versions of Rails: #{used_railses.join(", ")}"
     unless used_railses.include?('edge')
       puts "There were errors running pre_commit against edge"
@@ -24,34 +26,39 @@ class PreCommit::RspecOnRails < PreCommit
     File.basename(rails_dir)
   end
 
-  def rspec_pre_commit(rails_version=ENV['RSPEC_RAILS_VERSION'])
+  def rspec_pre_commit(rails_version=ENV['RSPEC_RAILS_VERSION'],uninstall=true)
     puts "#####################################################"
     puts "running pre_commit against rails #{rails_version}"
     puts "#####################################################"
     ENV['RSPEC_RAILS_VERSION'] = rails_version
-    cleanup
-    install_plugins
-    create_purchase
-    generate_login_controller
+    cleanup(uninstall)
     ensure_db_config
     clobber_sqlite_data
-    rake_sh "db:migrate"
+    install_plugins
     generate_rspec
 
-    rake_sh "spec:rcov"
+    generate_login_controller
+    create_purchase
+
+    rake_sh "spec"
     rake_sh "spec:plugins:rspec_on_rails"
-    cleanup
+    
+    # TODO - why is this necessary? Shouldn't the specs leave
+    # a clean DB?
+    rake_sh "db:test:prepare"
+    sh "ruby vendor/plugins/rspec_on_rails/stories/all.rb"
+    cleanup(uninstall)
   end
 
-  def cleanup
+  def cleanup(uninstall=true)
     revert_routes
     rm_generated_login_controller_files
     destroy_purchase
-    uninstall_plugins
+    uninstall_plugins if uninstall
   end
 
   def revert_routes
-    output = silent_sh("svn revert config/routes.rb")
+    output = silent_sh("cp config/routes.rb.bak config/routes.rb")
     raise "Error reverting routes.rb" if shell_error?(output)
   end
 
@@ -67,14 +74,12 @@ class PreCommit::RspecOnRails < PreCommit
 
   def install_rspec_on_rails_plugin
     rm_rf 'vendor/plugins/rspec_on_rails'
-    output = silent_sh("svn export ../rspec_on_rails vendor/plugins/rspec_on_rails")
-    raise "Error installing rspec_on_rails" if shell_error?(output)
+    copy '../rspec_on_rails', 'vendor/plugins/'
   end
 
   def install_rspec_plugin
     rm_rf 'vendor/plugins/rspec'
-    output = silent_sh("svn export ../rspec vendor/plugins/rspec")
-    raise "Error installing rspec" if shell_error?(output)
+    copy '../rspec', 'vendor/plugins/'
   end
 
   def uninstall_plugins
@@ -86,7 +91,12 @@ class PreCommit::RspecOnRails < PreCommit
     rm_rf 'spec/spec.opts'
     rm_rf 'spec/rcov.opts'
   end
-
+  
+  def copy(source, target)
+    output = silent_sh("cp -R #{File.expand_path(source)} #{File.expand_path(target)}")
+    raise "Error installing rspec" if shell_error?(output)
+  end
+  
   def generate_rspec
     result = silent_sh("ruby script/generate rspec --force")
     if error_code? || result =~ /^Missing/
@@ -170,8 +180,8 @@ class PreCommit::RspecOnRails < PreCommit
     EOF
     puts notice.gsub(/^    /, '')
     rake_sh "db:migrate", 'VERSION' => (purchase_migration_version.to_i - 1)
-    output = silent_sh("svn revert config/routes.rb")
-    raise "svn revert failed: #{output}" if error_code?
+    output = silent_sh("cp config/routes.rb.bak config/routes.rb")
+    raise "revert failed: #{output}" if error_code?
   end
 
   def rm_generated_purchase_files
@@ -186,6 +196,7 @@ class PreCommit::RspecOnRails < PreCommit
       spec/models/purchase_spec.rb
       spec/helpers/purchases_helper_spec.rb
       spec/controllers/purchases_controller_spec.rb
+      spec/controllers/purchases_routing_spec.rb
       spec/fixtures/purchases.yml
       spec/views/purchases
     }
@@ -275,27 +286,21 @@ class PreCommit::RspecOnRails < PreCommit
 
   VENDOR_DEPS = [
     {
-      :checkout_path => "vendor/rails/1.2.2",
-      :name =>  "rails 1.2.2",
-      :url => "http://dev.rubyonrails.org/svn/rails/tags/rel_1-2-2",
+      :checkout_path => "vendor/rails/2.0.2",
+      :name =>  "rails 2.0.2",
+      :url => "http://dev.rubyonrails.org/svn/rails/tags/rel_2-0-2",
+      :tagged? => true
+    },
+    {
+      :checkout_path => "vendor/rails/1.2.6",
+      :name =>  "rails 1.2.6",
+      :url => "http://dev.rubyonrails.org/svn/rails/tags/rel_1-2-6",
       :tagged? => true
     },
     {
       :checkout_path => "vendor/rails/1.2.3",
       :name =>  "rails 1.2.3",
       :url => "http://dev.rubyonrails.org/svn/rails/tags/rel_1-2-3",
-      :tagged? => true
-    },
-    {
-      :checkout_path => "vendor/rails/1.2.5",
-      :name =>  "rails 1.2.5",
-      :url => "http://dev.rubyonrails.org/svn/rails/tags/rel_1-2-5",
-      :tagged? => true
-    },
-    {
-      :checkout_path => "vendor/rails/2.0.0-RC1",
-      :name =>  "rails 2.0.0-RC1",
-      :url => "http://dev.rubyonrails.org/svn/rails/tags/rel_2-0-0_RC1",
       :tagged? => true
     },
     {

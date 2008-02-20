@@ -10,8 +10,10 @@ class PreCommit::Rspec < PreCommit
   end
   
   def check_for_gem_dependencies
+    require "rubygems"
     gem 'rake'
-    gem 'webgen', '>= 0.4.2'
+    gem 'webby'
+    gem 'coderay'
     gem 'RedCloth'
     gem 'syntax'
     gem 'diff-lcs'
@@ -38,17 +40,17 @@ class PreCommit::Rspec < PreCommit
     end
   end
   
+  # TODO - move me up to the project root
   def touch_revision_storing_files
-    # See http://svnbook.red-bean.com/en/1.0/ch07s02.html - the section on svn:keywords
     files = [
       'rspec/lib/spec/version.rb',
       'rspec_on_rails/lib/spec/rails/version.rb'
     ]
-    new_token = rand
+    build_time_utc = Time.now.utc.strftime('%Y%m%d%H%M%S')
     files.each do |path|
       abs_path = File.join(root_dir, path)
       content = File.open(abs_path).read
-      touched_content = content.gsub(/# RANDOM_TOKEN: (.*)\n/n, "# RANDOM_TOKEN: #{new_token}\n")
+      touched_content = content.gsub(/BUILD_TIME_UTC = (\d*)/, "BUILD_TIME_UTC = #{build_time_utc}")
       File.open(abs_path, 'w') do |io|
         io.write touched_content
       end
@@ -79,7 +81,7 @@ class PreCommit::Rspec < PreCommit
 
   def update_dependencies
     Dir.chdir 'example_rails_app' do
-      rake_sh("-f Multirails.rake update_dependencies --trace")
+      rake_sh("-f Multirails.rake update_dependencies")
     end
   end
 

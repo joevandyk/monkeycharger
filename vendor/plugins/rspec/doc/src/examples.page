@@ -1,8 +1,0 @@
----
-title: Examples
----
-h2. Examples
-
-Here is an example of an RSpec spec:
-
-<ruby file="../rspec/examples/pure/stack_spec.rb" />
