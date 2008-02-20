@@ -1,13 +1,15 @@
 require 'rbconfig'
 require 'digest/md5' 
+require 'rails_generator/secret_key_generator'
 
 class AppGenerator < Rails::Generator::Base
   DEFAULT_SHEBANG = File.join(Config::CONFIG['bindir'],
                               Config::CONFIG['ruby_install_name'])
 
   DATABASES = %w(mysql oracle postgresql sqlite2 sqlite3 frontbase)
+  DEFAULT_DATABASE = 'sqlite3'
 
-  default_options   :db => (ENV["RAILS_DEFAULT_DATABASE"] || "mysql"),
+  default_options   :db => (ENV["RAILS_DEFAULT_DATABASE"] || DEFAULT_DATABASE),
     :shebang => DEFAULT_SHEBANG, :freeze => false
   mandatory_options :source => "#{File.dirname(__FILE__)}/../../../../.."
 
@@ -32,6 +34,9 @@ class AppGenerator < Rails::Generator::Base
     md5 << String(rand(0))
     md5 << String($$)
     md5 << @app_name
+
+    # Do our best to generate a secure secret key for CookieStore
+    secret = Rails::SecretKeyGenerator.new(@app_name).generate_secret
 
     record do |m|
       # Root directory and all subdirectories.
@@ -61,7 +66,7 @@ class AppGenerator < Rails::Generator::Base
 
       # Environments
       m.file "environments/boot.rb",    "config/boot.rb"
-      m.template "environments/environment.rb", "config/environment.rb", :assigns => { :freeze => options[:freeze], :app_name => @app_name, :app_secret => md5.hexdigest }
+      m.template "environments/environment.rb", "config/environment.rb", :assigns => { :freeze => options[:freeze], :app_name => @app_name, :app_secret => secret }
       m.file "environments/production.rb",  "config/environments/production.rb"
       m.file "environments/development.rb", "config/environments/development.rb"
       m.file "environments/test.rb",        "config/environments/test.rb"
@@ -115,8 +120,8 @@ class AppGenerator < Rails::Generator::Base
              "Default: #{DEFAULT_SHEBANG}") { |v| options[:shebang] = v }
 
       opt.on("-d", "--database=name", String,
-            "Preconfigure for selected database (options: mysql/oracle/postgresql/sqlite2/sqlite3).",
-            "Default: mysql") { |v| options[:db] = v }
+            "Preconfigure for selected database (options: #{DATABASES.join('/')}).",
+            "Default: #{DEFAULT_DATABASE}") { |v| options[:db] = v }
 
       opt.on("-f", "--freeze",
             "Freeze Rails in vendor/rails from the gems generating the skeleton",
@@ -124,7 +129,7 @@ class AppGenerator < Rails::Generator::Base
     end
 
     def mysql_socket_location
-      MYSQL_SOCKET_LOCATIONS.find { |f| File.exists?(f) } unless RUBY_PLATFORM =~ /(:?mswin|mingw)/
+      MYSQL_SOCKET_LOCATIONS.find { |f| File.exist?(f) } unless RUBY_PLATFORM =~ /(:?mswin|mingw)/
     end
 
 

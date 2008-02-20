@@ -1,4 +1,13 @@
-require File.dirname(__FILE__) + '/abstract_unit'
+require 'abstract_unit'
+
+if RUBY_VERSION >= '1.9'
+  class CharsTest < Test::Unit::TestCase
+    def test_chars_returns_self
+      str = 'abc'
+      assert_equal str.object_id, str.chars.object_id
+    end
+  end
+else
 
 $KCODE = 'UTF8'
 
@@ -85,16 +94,20 @@ class CharsTest < Test::Unit::TestCase
         "Non-matching regular expressions should return nil")
     end
   end
-  
+
   def test_pragma
-    with_kcode('UTF8') do
-      assert " ".chars.send(:utf8_pragma?), "UTF8 pragma should be on because KCODE is UTF8"
-    end
-    with_kcode('none') do
-      assert !" ".chars.send(:utf8_pragma?), "UTF8 pragma should be off"
+    if RUBY_VERSION < '1.9'
+      with_kcode('UTF8') do
+        assert " ".chars.send(:utf8_pragma?), "UTF8 pragma should be on because KCODE is UTF8"
+      end
+      with_kcode('none') do
+        assert !" ".chars.send(:utf8_pragma?), "UTF8 pragma should be off because KCODE is not UTF8"
+      end
+    else
+      assert !" ".chars.send(:utf8_pragma?), "UTF8 pragma should be off in Ruby 1.9"
     end
   end
-  
+
   def test_handler_setting
     handler = ''.chars.handler
     
@@ -170,4 +183,6 @@ class CharsTest < Test::Unit::TestCase
       $KCODE = old_kcode
     end
   end
+end
+
 end

@@ -1,12 +1,12 @@
 module ActiveRecord
   # Raised by save! and create! when the record is invalid.  Use the
-  # record method to retrieve the record which did not validate.
+  # +record+ method to retrieve the record which did not validate.
   #   begin
   #     complex_operation_that_calls_save!_internally
   #   rescue ActiveRecord::RecordInvalid => invalid
   #     puts invalid.record.errors
   #   end
-  class RecordInvalid < ActiveRecordError #:nodoc:
+  class RecordInvalid < ActiveRecordError
     attr_reader :record
     def initialize(record)
       @record = record
@@ -297,7 +297,33 @@ module ActiveRecord
                                   :equal_to => '==', :less_than => '<', :less_than_or_equal_to => '<=',
                                   :odd => 'odd?', :even => 'even?' }.freeze
 
-
+      # Adds a validation method or block to the class. This is useful when
+      # overriding the #validate instance method becomes too unwieldly and
+      # you're looking for more descriptive declaration of your validations.
+      #
+      # This can be done with a symbol pointing to a method:
+      #
+      #   class Comment < ActiveRecord::Base
+      #     validate :must_be_friends
+      #
+      #     def must_be_friends
+      #       errors.add_to_base("Must be friends to leave a comment") unless commenter.friend_of?(commentee)
+      #     end
+      #   end
+      #
+      # Or with a block which is passed the current record to be validated:
+      #
+      #   class Comment < ActiveRecord::Base
+      #     validate do |comment|
+      #       comment.must_be_friends
+      #     end
+      #
+      #     def must_be_friends
+      #       errors.add_to_base("Must be friends to leave a comment") unless commenter.friend_of?(commentee)
+      #     end
+      #   end
+      #
+      # This usage applies to #validate_on_create and #validate_on_update as well.
       def validate(*methods, &block)
         methods << block if block_given?
         write_inheritable_set(:validate, methods)
@@ -383,9 +409,12 @@ module ActiveRecord
       #     <%= password_field "person", "password" %>
       #     <%= password_field "person", "password_confirmation" %>
       #
-      # The person has to already have a password attribute (a column in the people table), but the password_confirmation is virtual.
-      # It exists only as an in-memory variable for validating the password. This check is performed only if password_confirmation
-      # is not nil and by default on save.
+      # The added +password_confirmation+ attribute is virtual; it exists only as an in-memory attribute for validating the password.
+      # To achieve this, the validation adds acccessors to the model for the confirmation attribute. NOTE: This check is performed
+      # only if +password_confirmation+ is not nil, and by default only on save. To require confirmation, make sure to add a presence
+      # check for the confirmation attribute:
+      #
+      #   validates_presence_of :password_confirmation, :if => :password_changed?
       #
       # Configuration options:
       # * <tt>message</tt> - A custom error message (default is: "doesn't match confirmation")
@@ -400,7 +429,7 @@ module ActiveRecord
         configuration = { :message => ActiveRecord::Errors.default_error_messages[:confirmation], :on => :save }
         configuration.update(attr_names.extract_options!)
 
-        attr_accessor *(attr_names.map { |n| "#{n}_confirmation" })
+        attr_accessor(*(attr_names.map { |n| "#{n}_confirmation" }))
 
         validates_each(attr_names, configuration) do |record, attr_name, value|
           record.errors.add(attr_name, configuration[:message]) unless record.send("#{attr_name}_confirmation").nil? or value == record.send("#{attr_name}_confirmation")
@@ -414,15 +443,16 @@ module ActiveRecord
       #     validates_acceptance_of :eula, :message => "must be abided"
       #   end
       #
-      # The terms_of_service attribute is entirely virtual. No database column is needed. This check is performed only if
-      # terms_of_service is not nil and by default on save.
+      # If the database column does not exist, the terms_of_service attribute is entirely virtual. This check is
+      # performed only if terms_of_service is not nil and by default on save.
       #
       # Configuration options:
       # * <tt>message</tt> - A custom error message (default is: "must be accepted")
       # * <tt>on</tt> - Specifies when this validation is active (default is :save, other options :create, :update)
       # * <tt>allow_nil</tt> - Skip validation if attribute is nil. (default is true)
       # * <tt>accept</tt> - Specifies value that is considered accepted.  The default value is a string "1", which
-      #   makes it easy to relate to an HTML checkbox.
+      #   makes it easy to relate to an HTML checkbox. This should be set to 'true' if you are validating a database
+      #   column, since the attribute is typecast from "1" to <tt>true</tt> before validation.
       # * <tt>if</tt> - Specifies a method, proc or string to call to determine if the validation should
       #   occur (e.g. :if => :allow_validation, or :if => Proc.new { |user| user.signup_step > 2 }).  The
       #   method, proc or string should return or evaluate to a true or false value.
@@ -433,7 +463,13 @@ module ActiveRecord
         configuration = { :message => ActiveRecord::Errors.default_error_messages[:accepted], :on => :save, :allow_nil => true, :accept => "1" }
         configuration.update(attr_names.extract_options!)
 
-        attr_accessor *attr_names
+        db_cols = begin
+          column_names
+        rescue ActiveRecord::StatementInvalid
+          []
+        end
+        names = attr_names.reject { |name| db_cols.include?(name.to_s) }
+        attr_accessor(*names)
 
         validates_each(attr_names,configuration) do |record, attr_name, value|
           record.errors.add(attr_name, configuration[:message]) unless value == configuration[:accept]
@@ -595,6 +631,10 @@ module ActiveRecord
       # When the record is created, a check is performed to make sure that no record exists in the database with the given value for the specified
       # attribute (that maps to a column). When the record is updated, the same check is made but disregarding the record itself.
       #
+      # Because this check is performed outside the database there is still a chance that duplicate values
+      # will be inserted in two parallel transactions.  To guarantee against this you should create a 
+      # unique index on the field. See +add_index+ for more information.
+      #
       # Configuration options:
       # * <tt>message</tt> - Specifies a custom error message (default is: "has already been taken")
       # * <tt>scope</tt> - One or more columns by which to limit the scope of the uniquness constraint.
@@ -667,6 +707,8 @@ module ActiveRecord
       #
       # Configuration options:
       # * <tt>message</tt> - A custom error message (default is: "is invalid")
+      # * <tt>allow_nil</tt> - If set to true, skips this validation if the attribute is null (default is: false)
+      # * <tt>allow_blank</tt> - If set to true, skips this validation if the attribute is blank (default is: false)
       # * <tt>with</tt> - The regular expression used to validate the format with (note: must be supplied!)
       # * <tt>on</tt> Specifies when this validation is active (default is :save, other options :create, :update)
       # * <tt>if</tt> - Specifies a method, proc or string to call to determine if the validation should
@@ -773,6 +815,7 @@ module ActiveRecord
       # is both present and guaranteed to be valid, you also need to use validates_presence_of.
       #
       # Configuration options:
+      # * <tt>message</tt> - A custom error message (default is: "is invalid")
       # * <tt>on</tt> Specifies when this validation is active (default is :save, other options :create, :update)
       # * <tt>if</tt> - Specifies a method, proc or string to call to determine if the validation should
       #   occur (e.g. :if => :allow_validation, or :if => Proc.new { |user| user.signup_step > 2 }).  The

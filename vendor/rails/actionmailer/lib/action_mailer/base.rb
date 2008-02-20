@@ -298,11 +298,6 @@ module ActionMailer #:nodoc:
     # This defaults to the value for the +default_implicit_parts_order+.
     adv_attr_accessor :implicit_parts_order
     
-    # Override the mailer name, which defaults to an inflected version of the
-    # mailer's class name. If you want to use a template in a non-standard
-    # location, you can use this to specify that location.
-    adv_attr_accessor :mailer_name
-    
     # Defaults to "1.0", but may be explicitly given if needed.
     adv_attr_accessor :mime_version
     
@@ -322,10 +317,35 @@ module ActionMailer #:nodoc:
     # have multiple mailer methods share the same template.
     adv_attr_accessor :template
 
+    # Override the mailer name, which defaults to an inflected version of the
+    # mailer's class name. If you want to use a template in a non-standard
+    # location, you can use this to specify that location.
+    def mailer_name(value = nil)
+      if value
+        self.mailer_name = value
+      else
+        self.class.mailer_name
+      end
+    end
+    
+    def mailer_name=(value)
+      self.class.mailer_name = value
+    end
+
     # The mail object instance referenced by this mailer.
     attr_reader :mail
 
     class << self
+      attr_writer :mailer_name
+
+      def mailer_name
+        @mailer_name ||= name.underscore
+      end
+
+      # for ActionView compatibility
+      alias_method :controller_name, :mailer_name
+      alias_method :controller_path, :mailer_name
+
       def method_missing(method_symbol, *parameters)#:nodoc:
         case method_symbol.id2name
           when /^create_([_a-z]\w*)/  then new($1, *parameters).mail
@@ -443,7 +463,10 @@ module ActionMailer #:nodoc:
     # no alternate has been given as the parameter, this will fail.
     def deliver!(mail = @mail)
       raise "no mail object available for delivery!" unless mail
-      logger.info "Sent mail:\n #{mail.encoded}" unless logger.nil?
+      unless logger.nil?
+        logger.info  "Sent mail to #{recipients.to_a.join(', ')}"
+        logger.debug "\n#{mail.encoded}"
+      end
 
       begin
         __send__("perform_delivery_#{delivery_method}", mail) if perform_deliveries
@@ -476,6 +499,9 @@ module ActionMailer #:nodoc:
 
       def render(opts)
         body = opts.delete(:body)
+        if opts[:file] && opts[:file] !~ /\//
+          opts[:file] = "#{mailer_name}/#{opts[:file]}"
+        end
         initialize_template_class(body).render(opts)
       end
 
@@ -484,7 +510,7 @@ module ActionMailer #:nodoc:
       end
 
       def initialize_template_class(assigns)
-        ActionView::Base.new(template_path, assigns, self)
+        ActionView::Base.new([template_root], assigns, self)
       end
 
       def sort_parts(parts, order = [])

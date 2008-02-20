@@ -1,6 +1,6 @@
 module ActionView
   module Helpers #:nodoc:
-    # Provides methods for converting a numbers into formatted strings.
+    # Provides methods for converting numbers into formatted strings.
     # Methods are provided for phone numbers, currency, percentage,
     # precision, positional notation, and file size.
     module NumberHelper
@@ -21,7 +21,7 @@ module ActionView
       #  number_to_phone(1235551234, :area_code => true, :extension => 555) # => (123) 555-1234 x 555
       #  number_to_phone(1235551234, :country_code => 1)                    # => +1-123-555-1234
       #
-      #  number_to_phone(1235551234, :country_code => 1, :extension => 1343, :delimeter => ".")
+      #  number_to_phone(1235551234, :country_code => 1, :extension => 1343, :delimiter => ".")
       #  => +1.123.555.1234 x 1343      
       def number_to_phone(number, options = {})
         number       = number.to_s.strip unless number.nil?
@@ -170,7 +170,7 @@ module ActionView
           when size < 1.gigabyte; "%.#{precision}f MB"  % (size / 1.0.megabyte)
           when size < 1.terabyte; "%.#{precision}f GB"  % (size / 1.0.gigabyte)
           else                    "%.#{precision}f TB"  % (size / 1.0.terabyte)
-        end.sub(/([0-9])\.?0+ /, '\1 ' )
+        end.sub(/([0-9]\.\d*?)0+ /, '\1 ' ).sub(/\. /,' ')
       rescue
         nil
       end

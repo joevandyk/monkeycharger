@@ -2,6 +2,12 @@ require "#{File.dirname(__FILE__)}/../abstract_unit"
 require "#{File.dirname(__FILE__)}/fake_controllers"
 require 'action_controller/routing'
 
+class MilestonesController < ActionController::Base
+  def index() head :ok end
+  alias_method :show, :index
+  def rescue_action(e) raise e end
+end
+
 RunTimeTests = ARGV.include? 'time'
 ROUTING = ActionController::Routing
 
@@ -218,13 +224,12 @@ class LegacyRouteSetTests < Test::Unit::TestCase
       x.send(:user_path, 3, :bar=>"foo")
     end
     
-    def test_optimized_named_route_with_host 
+    def test_optimised_named_route_with_host 
      	rs.add_named_route :pages, 'pages', :controller => 'content', :action => 'show_page', :host => 'foo.com' 
      	x = setup_for_named_route 
      	x.expects(:url_for).with(:host => 'foo.com', :only_path => false, :controller => 'content', :action => 'show_page', :use_route => :pages).once
       x.send(:pages_url)
-    end
-    
+    end  
   end
 
   def setup_for_named_route
@@ -883,14 +888,14 @@ class DynamicSegmentTest < Test::Unit::TestCase
   end
   
   def test_build_pattern_non_optional_with_no_captures
-    # Non optioanl
+    # Non optional
     a_segment = ROUTING::DynamicSegment.new
     a_segment.regexp = /\d+/ #number_of_captures is 0
     assert_equal "(\\d+)stuff", a_segment.build_pattern('stuff')
   end
 
   def test_build_pattern_non_optional_with_captures
-    # Non optioanl
+    # Non optional
     a_segment = ROUTING::DynamicSegment.new
     a_segment.regexp = /(\d+)(.*?)/ #number_of_captures is 2
     assert_equal "((\\d+)(.*?))stuff", a_segment.build_pattern('stuff')
@@ -936,8 +941,16 @@ uses_mocha 'RouteTest' do
 
     def url_for(options)
       only_path = options.delete(:only_path)
+      
+      port        = options.delete(:port) || 80
+      port_string = port == 80 ? '' : ":#{port}"
+      
+      host   = options.delete(:host) || "named.route.test"
+      anchor = "##{options.delete(:anchor)}" if options.key?(:anchor)
+      
       path = routes.generate(options)
-      only_path ? path : "http://named.route.test#{path}"
+      
+      only_path ? "#{path}#{anchor}" : "http://#{host}#{port_string}#{path}#{anchor}"
     end
     
     def request
@@ -1553,7 +1566,40 @@ class RouteSetTest < Test::Unit::TestCase
     assert_equal '/admin/users', set.generate(controller.send(:hash_for_users_url), {:controller => 'users', :action => 'index'})
   end
 
-  def test_namd_route_url_method_with_ordered_parameters
+  def test_named_route_url_method_with_anchor
+    controller = setup_named_route_test
+
+    assert_equal "http://named.route.test/people/5#location", controller.send(:show_url, :id => 5, :anchor => 'location')
+    assert_equal "/people/5#location", controller.send(:show_path, :id => 5, :anchor => 'location')
+
+    assert_equal "http://named.route.test/people#location", controller.send(:index_url, :anchor => 'location')
+    assert_equal "/people#location", controller.send(:index_path, :anchor => 'location')
+
+    assert_equal "http://named.route.test/admin/users#location", controller.send(:users_url, :anchor => 'location')
+    assert_equal '/admin/users#location', controller.send(:users_path, :anchor => 'location')
+
+    assert_equal "http://named.route.test/people/go/7/hello/joe/5#location",
+      controller.send(:multi_url, 7, "hello", 5, :anchor => 'location')
+
+    assert_equal "http://named.route.test/people/go/7/hello/joe/5?baz=bar#location",
+      controller.send(:multi_url, 7, "hello", 5, :baz => "bar", :anchor => 'location')
+
+    assert_equal "http://named.route.test/people?baz=bar#location",
+      controller.send(:index_url, :baz => "bar", :anchor => 'location')
+  end
+  
+  def test_named_route_url_method_with_port
+    controller = setup_named_route_test
+    assert_equal "http://named.route.test:8080/people/5", controller.send(:show_url, 5, :port=>8080)
+  end
+  
+  def test_named_route_url_method_with_host
+    controller = setup_named_route_test
+    assert_equal "http://some.example.com/people/5", controller.send(:show_url, 5, :host=>"some.example.com")
+  end
+  
+
+  def test_named_route_url_method_with_ordered_parameters
     controller = setup_named_route_test
     assert_equal "http://named.route.test/people/go/7/hello/joe/5",
       controller.send(:multi_url, 7, "hello", 5)
@@ -1978,6 +2024,40 @@ class RouteSetTest < Test::Unit::TestCase
     assert_equal 2, all.length
     assert_equal '/show_post/10', all.first
     assert_equal '/post/show/10', all.last
+  end
+  
+  def test_named_route_in_nested_resource
+    set.draw do |map|
+      map.resources :projects do |project|
+        project.milestones 'milestones', :controller => 'milestones', :action => 'index'
+      end
+    end
+    
+    request.path = "/projects/1/milestones"
+    request.method = :get
+    assert_nothing_raised { set.recognize(request) }
+    assert_equal("milestones", request.path_parameters[:controller])
+    assert_equal("index", request.path_parameters[:action])
+  end
+  
+  def test_setting_root_in_namespace_using_symbol
+    assert_nothing_raised do
+      set.draw do |map|
+        map.namespace :admin do |admin|
+          admin.root :controller => 'home'
+        end
+      end
+    end
+  end
+  
+  def test_setting_root_in_namespace_using_string
+    assert_nothing_raised do
+      set.draw do |map|
+        map.namespace 'admin' do |admin|
+          admin.root :controller => 'home'
+        end
+      end
+    end
   end
   
 end

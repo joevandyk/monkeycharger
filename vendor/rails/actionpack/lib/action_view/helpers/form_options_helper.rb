@@ -131,6 +131,17 @@ module ActionView
       # to TimeZone. This may be used by users to specify a different time
       # zone model object. (See #time_zone_options_for_select for more
       # information.)
+      # Finally, this method supports a <tt>:default</tt> option, which selects
+      # a default TimeZone if the object's time zone is nil.
+      #
+      # Examples:
+      #   time_zone_select( "user", "time_zone", nil, :include_blank => true)
+      #
+      #   time_zone_select( "user", "time_zone", nil, :default => "Pacific Time (US & Canada)" )
+      #
+      #   time_zone_select( "user", 'time_zone', TimeZone.us_zones, :default => "Pacific Time (US & Canada)")
+      #
+      #   time_zone_select( "user", "time_zone", TZInfo::Timezone.all.sort, :model => TZInfo::Timezone)
       def time_zone_select(object, method, priority_zones = nil, options = {}, html_options = {})
         InstanceTag.new(object, method, self, nil, options.delete(:object)).to_time_zone_select_tag(priority_zones, options, html_options)
       end
@@ -249,7 +260,7 @@ module ActionView
 
         if priority_countries
           country_options += options_for_select(priority_countries, selected)
-          country_options += "<option value=\"\">-------------</option>\n"
+          country_options += "<option value=\"\" disabled=\"disabled\">-------------</option>\n"
         end
 
         return country_options + options_for_select(COUNTRIES, selected)
@@ -280,7 +291,7 @@ module ActionView
 
         if priority_zones
           zone_options += options_for_select(convert_zones[priority_zones], selected)
-          zone_options += "<option value=\"\">-------------</option>\n"
+          zone_options += "<option value=\"\" disabled=\"disabled\">-------------</option>\n"
 
           zones = zones.reject { |z| priority_zones.include?( z ) }
         end
@@ -319,8 +330,7 @@ module ActionView
           "Cyprus", "Czech Republic", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt",
           "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Ethiopia", "Falkland Islands (Malvinas)",
           "Faroe Islands", "Fiji", "Finland", "France", "French Guiana", "French Polynesia",
-          "French Southern Territories", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Gibraltar",
-          "Great Britain", "Greece", "Greenland", "Grenada", "Guadeloupe", "Guam", "Guatemala", "Guernsey", "Guinea",
+          "French Southern Territories", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Gibraltar", "Greece", "Greenland", "Grenada", "Guadeloupe", "Guam", "Guatemala", "Guernsey", "Guinea",
           "Guinea-Bissau", "Guyana", "Haiti", "Heard and McDonald Islands", "Holy See (Vatican City State)",
           "Honduras", "Hong Kong", "Hungary", "Iceland", "India", "Indonesia", "Iran, Islamic Republic of", "Iraq",
           "Ireland", "Isle of Man", "Israel", "Italy", "Jamaica", "Japan", "Jersey", "Jordan", "Kazakhstan", "Kenya",
@@ -386,7 +396,7 @@ module ActionView
         value = value(object)
         content_tag("select",
           add_options(
-            time_zone_options_for_select(value, priority_zones, options[:model] || TimeZone),
+            time_zone_options_for_select(value || options[:default], priority_zones, options[:model] || TimeZone),
             options, value
           ), html_options
         )

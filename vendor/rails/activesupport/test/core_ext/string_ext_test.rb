@@ -78,13 +78,26 @@ class StringInflectionsTest < Test::Unit::TestCase
     end
   end
 
+  def test_ord
+    assert_equal 97, 'a'.ord
+    assert_equal 97, 'abc'.ord
+  end
+
   def test_string_to_time
     assert_equal Time.utc(2005, 2, 27, 23, 50), "2005-02-27 23:50".to_time
     assert_equal Time.local(2005, 2, 27, 23, 50), "2005-02-27 23:50".to_time(:local)
     assert_equal DateTime.civil(2039, 2, 27, 23, 50), "2039-02-27 23:50".to_time
     assert_equal Time.local_time(2039, 2, 27, 23, 50), "2039-02-27 23:50".to_time(:local)
-    assert_equal Date.new(2005, 2, 27), "2005-02-27".to_date
+  end
+  
+  def test_string_to_datetime
     assert_equal DateTime.civil(2039, 2, 27, 23, 50), "2039-02-27 23:50".to_datetime
+    assert_equal 0, "2039-02-27 23:50".to_datetime.offset # use UTC offset
+    assert_equal ::Date::ITALY, "2039-02-27 23:50".to_datetime.start # use Ruby's default start value
+  end
+  
+  def test_string_to_date
+    assert_equal Date.new(2005, 2, 27), "2005-02-27".to_date
   end
 
   def test_access
@@ -135,25 +148,34 @@ class StringInflectionsTest < Test::Unit::TestCase
     assert_equal %w(hello), hash.keys
   end
 
-  def test_starts_ends_with
+  def test_starts_ends_with_alias
     s = "hello"
     assert s.starts_with?('h')
     assert s.starts_with?('hel')
     assert !s.starts_with?('el')
 
+    assert s.start_with?('h')
+    assert s.start_with?('hel')
+    assert !s.start_with?('el')
+
     assert s.ends_with?('o')
     assert s.ends_with?('lo')
     assert !s.ends_with?('el')
+
+    assert s.end_with?('o')
+    assert s.end_with?('lo')
+    assert !s.end_with?('el')
   end
 
-  # FIXME: Ruby 1.9
-  def test_each_char_with_utf8_string_when_kcode_is_utf8
-    old_kcode, $KCODE = $KCODE, 'UTF8'
-    '€2.99'.each_char do |char|
-      assert_not_equal 1, char.length
-      break
+  if RUBY_VERSION < '1.9'
+    def test_each_char_with_utf8_string_when_kcode_is_utf8
+      old_kcode, $KCODE = $KCODE, 'UTF8'
+      '€2.99'.each_char do |char|
+        assert_not_equal 1, char.length
+        break
+      end
+    ensure
+      $KCODE = old_kcode
     end
-  ensure
-    $KCODE = old_kcode
   end
 end

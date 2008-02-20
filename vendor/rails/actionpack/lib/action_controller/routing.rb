@@ -268,6 +268,10 @@ module ActionController
   #    #...
   #  end
   #
+  # == View a list of all your routes
+  #
+  # Run <tt>rake routes</tt>.
+  #
   module Routing
     SEPARATORS = %w( / . ? )
 
@@ -1012,7 +1016,7 @@ module ActionController
         path = "/#{path}" unless path[0] == ?/
         path = "#{path}/" unless path[-1] == ?/
 
-        path = "/#{options[:path_prefix]}#{path}" if options[:path_prefix]
+        path = "/#{options[:path_prefix].to_s.gsub(/^\//,'')}#{path}" if options[:path_prefix]
 
         segments = segments_for_route_path(path)
         defaults, requirements, conditions = divide_route_options(segments, options)
@@ -1044,19 +1048,19 @@ module ActionController
       end
     end
 
-    class RouteSet #:nodoc:
+    class RouteSet #:nodoc: 
       # Mapper instances are used to build routes. The object passed to the draw
       # block in config/routes.rb is a Mapper instance.
       #
       # Mapper instances have relatively few instance methods, in order to avoid
       # clashes with named routes.
-      class Mapper #:nodoc:
-        def initialize(set)
+      class Mapper #:doc:
+        def initialize(set) #:nodoc:
           @set = set
         end
 
         # Create an unnamed route with the provided +path+ and +options+. See
-        # SomeHelpfulUrl for an introduction to routes.
+        # ActionController::Routing for an introduction to routes.
         def connect(path, options = {})
           @set.add_route(path, options)
         end
@@ -1066,7 +1070,7 @@ module ActionController
           named_route("root", '', options)
         end
 
-        def named_route(name, path, options = {})
+        def named_route(name, path, options = {}) #:nodoc:
           @set.add_named_route(name, path, options)
         end
 
@@ -1078,8 +1082,8 @@ module ActionController
         #       :has_many => [ :tags, :images, :variants ]
         #   end
         #
-        # This will create admin_products_url pointing to "admin/products", which will look for an Admin::ProductsController.
-        # It'll also create admin_product_tags_url pointing to "admin/products/#{product_id}/tags", which will look for
+        # This will create +admin_products_url+ pointing to "admin/products", which will look for an Admin::ProductsController.
+        # It'll also create +admin_product_tags_url+ pointing to "admin/products/#{product_id}/tags", which will look for
         # Admin::TagsController.
         def namespace(name, options = {}, &block)
           if options[:namespace]
@@ -1089,8 +1093,7 @@ module ActionController
           end
         end
 
-
-        def method_missing(route_name, *args, &proc)
+        def method_missing(route_name, *args, &proc) #:nodoc:
           super unless args.length >= 1 && proc.nil?
           @set.add_named_route(route_name, *args)
         end
@@ -1213,7 +1216,7 @@ module ActionController
                 opts = if args.empty? || Hash === args.first
                   args.first || {}
                 else
-                  options = args.last.is_a?(Hash) ? args.pop : {}
+                  options = args.extract_options!
                   args = args.zip(#{route.segment_keys.inspect}).inject({}) do |h, (v, k)|
                     h[k] = v
                     h

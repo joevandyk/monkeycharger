@@ -174,8 +174,7 @@ module ActiveRecord
           # Over/underflow to DateTime
           rescue ArgumentError, TypeError
             zone_offset = Base.default_timezone == :local ? DateTime.local_offset : 0
-            # Append zero calendar reform start to account for dates skipped by calendar reform
-            DateTime.new(year, mon, mday, hour, min, sec, zone_offset, 0) rescue nil
+            DateTime.civil(year, mon, mday, hour, min, sec, zone_offset) rescue nil
           end
 
           def fast_string_to_date(string)
@@ -193,14 +192,14 @@ module ActiveRecord
           end
 
           def fallback_string_to_date(string)
-            new_date *ParseDate.parsedate(string)[0..2]
+            new_date(*ParseDate.parsedate(string)[0..2])
           end
 
           def fallback_string_to_time(string)
             time_hash = Date._parse(string)
             time_hash[:sec_fraction] = microseconds(time_hash)
 
-            new_time *time_hash.values_at(:year, :mon, :mday, :hour, :min, :sec, :sec_fraction)
+            new_time(*time_hash.values_at(:year, :mon, :mday, :hour, :min, :sec, :sec_fraction))
           end
       end
 
@@ -293,11 +292,16 @@ module ActiveRecord
       end
 
       # Instantiates a new column for the table.
-      # The +type+ parameter must be one of the following values:
+      # The +type+ parameter is normally one of the migrations native types,
+      # which is one of the following:
       # <tt>:primary_key</tt>, <tt>:string</tt>, <tt>:text</tt>,
       # <tt>:integer</tt>, <tt>:float</tt>, <tt>:decimal</tt>,
       # <tt>:datetime</tt>, <tt>:timestamp</tt>, <tt>:time</tt>,
       # <tt>:date</tt>, <tt>:binary</tt>, <tt>:boolean</tt>.
+      #
+      # You may use a type not in this list as long as it is supported by your
+      # database (for example, "polygon" in MySQL), but this will not be database
+      # agnostic and should usually be avoided.
       #
       # Available options are (none of these exists by default):
       # * <tt>:limit</tt> -
@@ -413,7 +417,11 @@ module ActiveRecord
       #   end
       def column(name, type, options = {})
         column = self[name] || ColumnDefinition.new(@base, name, type)
-        column.limit = options[:limit] || native[type.to_sym][:limit] if options[:limit] or native[type.to_sym]
+        if options[:limit]
+          column.limit = options[:limit]
+        elsif native[type.to_sym].is_a?(Hash)
+          column.limit = native[type.to_sym][:limit]
+        end
         column.precision = options[:precision]
         column.scale = options[:scale]
         column.default = options[:default]
@@ -433,6 +441,8 @@ module ActiveRecord
         EOV
       end
       
+      # Appends <tt>:datetime</tt> columns <tt>:created_at</tt> and 
+      # <tt>:updated_at</tt> to the table.
       def timestamps
         column(:created_at, :datetime)
         column(:updated_at, :datetime)
@@ -443,9 +453,7 @@ module ActiveRecord
         polymorphic = options.delete(:polymorphic)
         args.each do |col|
           column("#{col}_id", :integer, options)
-          unless polymorphic.nil?
-            column("#{col}_type", :string, polymorphic.is_a?(Hash) ? polymorphic : {})
-          end
+          column("#{col}_type", :string, polymorphic.is_a?(Hash) ? polymorphic : options) unless polymorphic.nil?
         end
       end
       alias :belongs_to :references

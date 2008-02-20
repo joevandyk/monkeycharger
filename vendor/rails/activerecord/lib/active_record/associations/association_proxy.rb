@@ -12,15 +12,15 @@ module ActiveRecord
         Array(reflection.options[:extend]).each { |ext| proxy_extend(ext) }
         reset
       end
-      
+
       def proxy_owner
         @owner
       end
-      
+
       def proxy_reflection
         @reflection
       end
-      
+
       def proxy_target
         @target
       end
@@ -28,60 +28,67 @@ module ActiveRecord
       def respond_to?(symbol, include_priv = false)
         proxy_respond_to?(symbol, include_priv) || (load_target && @target.respond_to?(symbol, include_priv))
       end
-      
+
       # Explicitly proxy === because the instance method removal above
       # doesn't catch it.
       def ===(other)
         load_target
         other === @target
       end
-      
+
       def aliased_table_name
         @reflection.klass.table_name
       end
-      
+
       def conditions
         @conditions ||= interpolate_sql(sanitize_sql(@reflection.options[:conditions])) if @reflection.options[:conditions]
       end
       alias :sql_conditions :conditions
-      
+
       def reset
-        @target = nil
         @loaded = false
+        @target = nil
       end
 
       def reload
         reset
         load_target
+        self unless @target.nil?
       end
 
       def loaded?
         @loaded
       end
-      
+
       def loaded
         @loaded = true
       end
-      
+
       def target
         @target
       end
-      
+
       def target=(target)
         @target = target
         loaded
       end
-      
+
       def inspect
         reload unless loaded?
         @target.inspect
+      end
+
+      def to_xml(options={}, &block)
+        if load_target
+          @target.to_xml(options, &block)
+        end
       end
 
       protected
         def dependent?
           @reflection.options[:dependent]
         end
-        
+
         def quoted_record_ids(records)
           records.map { |record| record.quoted_id }.join(',')
         end
@@ -117,11 +124,11 @@ module ActiveRecord
             :select  => @reflection.options[:select]
           )
         end
-        
+
       private
-        def method_missing(method, *args, &block)
-          if load_target        
-            @target.send(method, *args, &block)
+        def method_missing(method, *args)
+          if load_target
+            @target.send(method, *args)  { |*block_args| yield(*block_args) if block_given? }
           end
         end
 

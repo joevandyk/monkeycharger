@@ -37,6 +37,18 @@ class EagerAssociationTest < Test::Unit::TestCase
     end
   end
 
+  def test_with_two_tables_in_from_without_getting_double_quoted
+    posts = Post.find(:all,
+      :select     => "posts.*",
+      :from       => "authors, posts",
+      :include    => :comments,
+      :conditions => "posts.author_id = authors.id",
+      :order      => "posts.id"
+    )
+
+    assert_equal 2, posts.first.comments.size
+  end
+
   def test_loading_with_multiple_associations
     posts = Post.find(:all, :include => [ :comments, :author, :categories ], :order => "posts.id")
     assert_equal 2, posts.first.comments.size
@@ -103,6 +115,11 @@ class EagerAssociationTest < Test::Unit::TestCase
     assert_equal [2], posts.collect { |p| p.id }
   end
   
+  def test_eager_association_loading_with_belongs_to_inferred_foreign_key_from_association_name
+    author_favorite = AuthorFavorite.find(:first, :include => :favorite_author)
+    assert_equal authors(:mary), assert_no_queries { author_favorite.favorite_author }
+  end
+
   def test_eager_association_loading_with_explicit_join
     posts = Post.find(:all, :include => :comments, :joins => "INNER JOIN authors ON posts.author_id = authors.id AND authors.name = 'Mary'", :limit => 1, :order => 'author_id')
     assert_equal 1, posts.length

@@ -4,7 +4,6 @@ require 'rake/testtask'
 require 'rake/rdoctask'
 require 'rake/packagetask'
 require 'rake/gempackagetask'
-require 'rake/contrib/rubyforgepublisher'
 require File.join(File.dirname(__FILE__), 'lib', 'action_pack', 'version')
 
 PKG_BUILD     = ENV['PKG_BUILD'] ? '.' + ENV['PKG_BUILD'] : ''
@@ -76,7 +75,7 @@ spec = Gem::Specification.new do |s|
   s.has_rdoc = true
   s.requirements << 'none'
 
-  s.add_dependency('activesupport', '= 1.99.0' + PKG_BUILD)
+  s.add_dependency('activesupport', '= 2.0.2' + PKG_BUILD)
 
   s.require_path = 'lib'
   s.autorequire = 'action_controller'
@@ -144,6 +143,7 @@ end
 desc "Publish the release files to RubyForge."
 task :release => [ :package ] do
   require 'rubyforge'
+  require 'rake/contrib/rubyforgepublisher'
 
   packages = %w( gem tgz zip ).collect{ |ext| "pkg/#{PKG_NAME}-#{PKG_VERSION}.#{ext}" }
 

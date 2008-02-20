@@ -15,10 +15,23 @@ module Enumerable
   #   "2006-02-24 -> Transcript, Transcript"
   #   "2006-02-23 -> Transcript"
   def group_by
-    inject({}) do |groups, element|
-      (groups[yield(element)] ||= []) << element
-      groups
+    groups = []
+
+    inject({}) do |grouped, element|
+      index = yield(element)
+
+      if group = grouped[index]
+        group << element
+      else
+        group = [element]
+        groups << [index, group]
+        grouped[index] = group
+      end
+
+      grouped
     end
+
+    groups
   end if RUBY_VERSION < '1.9'
 
   # Calculates a sum from the elements. Examples:
@@ -59,5 +72,4 @@ module Enumerable
       accum
     end
   end
-  
 end

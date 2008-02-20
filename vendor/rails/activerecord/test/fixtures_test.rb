@@ -1,5 +1,8 @@
 require 'abstract_unit'
+require 'fixtures/post'
+require 'fixtures/binary'
 require 'fixtures/topic'
+require 'fixtures/computer'
 require 'fixtures/developer'
 require 'fixtures/company'
 require 'fixtures/task'
@@ -10,6 +13,8 @@ require 'fixtures/category'
 require 'fixtures/parrot'
 require 'fixtures/pirate'
 require 'fixtures/treasure'
+require 'fixtures/matey'
+require 'fixtures/ship'
 
 class FixturesTest < Test::Unit::TestCase
   self.use_instantiated_fixtures = true
@@ -319,6 +324,30 @@ class MultipleFixturesTest < Test::Unit::TestCase
   end
 end
 
+class SetupTest < Test::Unit::TestCase
+  # fixtures :topics
+  
+  def setup
+    @first = true
+  end
+  
+  def test_nothing
+  end
+end
+
+class SetupSubclassTest < SetupTest
+  def setup
+    super
+    @second = true
+  end
+  
+  def test_subclassing_should_preserve_setups
+    assert @first
+    assert @second
+  end
+end
+
+
 class OverlappingFixturesTest < Test::Unit::TestCase
   fixtures :topics, :developers
   fixtures :developers, :accounts
@@ -451,7 +480,7 @@ class FasterFixturesTest < Test::Unit::TestCase
 end
 
 class FoxyFixturesTest < Test::Unit::TestCase
-  fixtures :parrots, :parrots_pirates, :pirates, :treasures
+  fixtures :parrots, :parrots_pirates, :pirates, :treasures, :mateys, :ships, :computers, :developers
 
   def test_identifies_strings
     assert_equal(Fixtures.identify("foo"), Fixtures.identify("foo"))
@@ -467,6 +496,12 @@ class FoxyFixturesTest < Test::Unit::TestCase
   def test_populates_timestamp_columns
     TIMESTAMP_COLUMNS.each do |property|
       assert_not_nil(parrots(:george).send(property), "should set #{property}")
+    end
+  end
+
+  def test_does_not_populate_timestamp_columns_if_model_has_set_record_timestamps_to_false
+    TIMESTAMP_COLUMNS.each do |property|
+      assert_nil(ships(:black_pearl).send(property), "should not set #{property}")
     end
   end
 
@@ -497,8 +532,20 @@ class FoxyFixturesTest < Test::Unit::TestCase
     assert_not_equal(parrots(:george).id, parrots(:louis).id)
   end
 
+  def test_automatically_sets_primary_key
+    assert_not_nil(ships(:black_pearl))
+  end
+
+  def test_preserves_existing_primary_key
+    assert_equal(2, ships(:interceptor).id)
+  end
+
   def test_resolves_belongs_to_symbols
     assert_equal(parrots(:george), pirates(:blackbeard).parrot)
+  end
+
+  def test_ignores_belongs_to_symbols_if_association_and_foreign_key_are_named_the_same
+    assert_equal(developers(:david), computers(:workstation).developer)
   end
 
   def test_supports_join_tables
@@ -511,6 +558,12 @@ class FoxyFixturesTest < Test::Unit::TestCase
     assert(parrots(:george).treasures.include?(treasures(:diamond)))
     assert(parrots(:george).treasures.include?(treasures(:sapphire)))
     assert(!parrots(:george).treasures.include?(treasures(:ruby)))
+  end
+
+  def test_supports_inline_habtm_with_specified_id
+    assert(parrots(:polly).treasures.include?(treasures(:ruby)))
+    assert(parrots(:polly).treasures.include?(treasures(:sapphire)))
+    assert(!parrots(:polly).treasures.include?(treasures(:diamond)))
   end
 
   def test_supports_yaml_arrays
@@ -532,6 +585,17 @@ class FoxyFixturesTest < Test::Unit::TestCase
   def test_supports_polymorphic_belongs_to
     assert_equal(pirates(:redbeard), treasures(:sapphire).looter)
     assert_equal(parrots(:louis), treasures(:ruby).looter)
+  end
+
+  def test_only_generates_a_pk_if_necessary
+    m = Matey.find(:first)
+    m.pirate = pirates(:blackbeard)
+    m.target = pirates(:redbeard)
+  end
+
+  def test_supports_sti
+    assert_kind_of DeadParrot, parrots(:polly)
+    assert_equal pirates(:blackbeard), parrots(:polly).killer
   end
 end
 

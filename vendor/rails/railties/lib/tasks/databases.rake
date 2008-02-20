@@ -16,11 +16,7 @@ namespace :db do
         #    <<: *defaults
         next unless config['database']
         # Only connect to local databases
-        if config['host'] == 'localhost' || config['host'].blank?
-          create_database(config)
-        else
-          p "This task only creates local databases. #{config['database']} is on a remote host."
-        end
+        local_database?(config) { create_database(config) }
       end
     end
   end
@@ -65,11 +61,7 @@ namespace :db do
         # Skip entries that don't have a database key
         next unless config['database']
         # Only connect to local databases
-        if config['host'] == 'localhost' || config['host'].blank?
-          drop_database(config)
-        else
-          p "This task only drops local databases. #{config['database']} is on a remote host."
-        end
+        local_database?(config) { drop_database(config) }
       end
     end
   end
@@ -79,11 +71,28 @@ namespace :db do
     drop_database(ActiveRecord::Base.configurations[RAILS_ENV || 'development'])
   end
 
+  def local_database?(config, &block)
+    if %w( 127.0.0.1 localhost ).include?(config['host']) || config['host'].blank?
+      yield
+    else
+      puts "This task only modifies local databases. #{config['database']} is on a remote host."
+    end
+  end
+
+
   desc "Migrate the database through scripts in db/migrate. Target specific version with VERSION=x. Turn off output with VERBOSE=false."
   task :migrate => :environment do
     ActiveRecord::Migration.verbose = ENV["VERBOSE"] ? ENV["VERBOSE"] == "true" : true
     ActiveRecord::Migrator.migrate("db/migrate/", ENV["VERSION"] ? ENV["VERSION"].to_i : nil)
     Rake::Task["db:schema:dump"].invoke if ActiveRecord::Base.schema_format == :ruby
+  end
+
+  namespace :migrate do
+    desc  'Rollbacks the database one migration and re migrate up. If you want to rollback more than one step, define STEP=x'
+    task :redo => [ 'db:rollback', 'db:migrate' ]
+
+    desc 'Resets your database using your migrations for the current environment'
+    task :reset => ["db:drop", "db:create", "db:migrate"]
   end
 
   desc 'Rolls the schema back to the previous version. Specify the number of steps with STEP=n'
@@ -125,6 +134,21 @@ namespace :db do
     puts "Current version: #{ActiveRecord::Migrator.current_version}"
   end
 
+  desc "Raises an error if there are pending migrations"
+  task :abort_if_pending_migrations => :environment do
+    if defined? ActiveRecord
+      pending_migrations = ActiveRecord::Migrator.new(:up, 'db/migrate').pending_migrations
+
+      if pending_migrations.any?
+        puts "You have #{pending_migrations.size} pending migrations:"
+        pending_migrations.each do |pending_migration|
+          puts '  %4d %s' % [pending_migration.version, pending_migration.name]
+        end
+        abort "Run `rake db:migrate` to update your database then try again."
+      end
+    end
+  end
+
   namespace :fixtures do
     desc "Load fixtures into the current environment's database.  Load specific fixtures using FIXTURES=x,y"
     task :load => :environment do
@@ -132,6 +156,28 @@ namespace :db do
       ActiveRecord::Base.establish_connection(RAILS_ENV.to_sym)
       (ENV['FIXTURES'] ? ENV['FIXTURES'].split(/,/) : Dir.glob(File.join(RAILS_ROOT, 'test', 'fixtures', '*.{yml,csv}'))).each do |fixture_file|
         Fixtures.create_fixtures('test/fixtures', File.basename(fixture_file, '.*'))
+      end
+    end
+    
+    desc "Search for a fixture given a LABEL or ID."
+    task :identify => :environment do
+      require "active_record/fixtures"
+
+      label, id = ENV["LABEL"], ENV["ID"]
+      raise "LABEL or ID required" if label.blank? && id.blank?
+      
+      puts %Q(The fixture ID for "#{label}" is #{Fixtures.identify(label)}.) if label
+      
+      Dir["#{RAILS_ROOT}/test/fixtures/**/*.yml"].each do |file|
+        if data = YAML::load(ERB.new(IO.read(file)).result)
+          data.keys.each do |key|
+            key_id = Fixtures.identify(key)
+            
+            if key == label || key_id == id.to_i
+              puts "#{file}: #{key} (#{key_id})"
+            end
+          end
+        end
       end
     end
   end
@@ -268,8 +314,8 @@ namespace :db do
     end
 
     desc 'Prepare the test database and load the schema'
-    task :prepare => :environment do
-      if defined?(ActiveRecord::Base) && !ActiveRecord::Base.configurations.blank?
+    task :prepare => %w(environment db:abort_if_pending_migrations) do
+      if defined?(ActiveRecord) && !ActiveRecord::Base.configurations.blank?
         Rake::Task[{ :sql  => "db:test:clone_structure", :ruby => "db:test:clone" }[ActiveRecord::Base.schema_format]].invoke
       end
     end
@@ -286,9 +332,7 @@ namespace :db do
 
     desc "Clear the sessions table"
     task :clear => :environment do
-      session_table = 'session'
-      session_table = Inflector.pluralize(session_table) if ActiveRecord::Base.pluralize_table_names
-      ActiveRecord::Base.connection.execute "DELETE FROM #{session_table}"
+      ActiveRecord::Base.connection.execute "DELETE FROM #{session_table_name}"
     end
   end
 end
@@ -298,7 +342,7 @@ def drop_database(config)
   when 'mysql'
     ActiveRecord::Base.connection.drop_database config['database']
   when /^sqlite/
-    FileUtils.rm_f(File.join(RAILS_ROOT, config['database']))
+    FileUtils.rm(File.join(RAILS_ROOT, config['database']))
   when 'postgresql'
     `dropdb "#{config['database']}"`
   end

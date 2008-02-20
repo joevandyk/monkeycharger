@@ -3,6 +3,9 @@ require 'stringio'
 require 'strscan'
 
 module ActionController
+  # HTTP methods which are accepted by default. 
+  ACCEPTED_HTTP_METHODS = Set.new(%w( get head put post delete options ))
+
   # CgiRequest and TestRequest provide concrete implementations.
   class AbstractRequest
     cattr_accessor :relative_url_root
@@ -12,18 +15,24 @@ module ActionController
     # such as { 'RAILS_ENV' => 'production' }.
     attr_reader :env
 
+    # The true HTTP request method as a lowercase symbol, such as :get.
+    # UnknownHttpMethod is raised for invalid methods not listed in ACCEPTED_HTTP_METHODS.
+    def request_method
+      @request_method ||= begin
+        method = ((@env['REQUEST_METHOD'] == 'POST' && !parameters[:_method].blank?) ? parameters[:_method].to_s : @env['REQUEST_METHOD']).downcase
+        if ACCEPTED_HTTP_METHODS.include?(method)
+          method.to_sym
+        else
+          raise UnknownHttpMethod, "#{method}, accepted HTTP methods are #{ACCEPTED_HTTP_METHODS.to_a.to_sentence}"
+        end
+      end
+    end
+
     # The HTTP request method as a lowercase symbol, such as :get.
     # Note, HEAD is returned as :get since the two are functionally
     # equivalent from the application's perspective.
     def method
-      @request_method ||=
-        if @env['REQUEST_METHOD'] == 'POST' && !parameters[:_method].blank?
-          parameters[:_method].to_s.downcase.to_sym
-        else
-          @env['REQUEST_METHOD'].downcase.to_sym
-        end
-
-      @request_method == :head ? :get : @request_method
+      request_method == :head ? :get : request_method
     end
 
     # Is this a GET (or HEAD) request?  Equivalent to request.method == :get
@@ -33,23 +42,23 @@ module ActionController
 
     # Is this a POST request?  Equivalent to request.method == :post
     def post?
-      method == :post
+      request_method == :post
     end
 
     # Is this a PUT request?  Equivalent to request.method == :put
     def put?
-      method == :put
+      request_method == :put
     end
 
     # Is this a DELETE request?  Equivalent to request.method == :delete
     def delete?
-      method == :delete
+      request_method == :delete
     end
 
     # Is this a HEAD request? request.method sees HEAD as :get, so check the
     # HTTP method directly.
     def head?
-      @env['REQUEST_METHOD'].downcase.to_sym == :head
+      request_method == :head
     end
 
     def headers
@@ -102,7 +111,7 @@ module ActionController
     #   end
     def format=(extension)
       parameters[:format] = extension.to_s
-      format
+      @format = Mime::Type.lookup_by_extension(parameters[:format])
     end
 
     # Returns true if the request's "X-Requested-With" header contains
@@ -288,11 +297,12 @@ module ActionController
       @symbolized_path_parameters ||= path_parameters.symbolize_keys
     end
 
-    # Returns a hash with the parameters used to form the path of the request 
+    # Returns a hash with the parameters used to form the path of the request.
+    # Returned hash keys are strings.  See <tt>symbolized_path_parameters</tt> for symbolized keys.
     #
     # Example: 
     #
-    #   {:action => 'my_action', :controller => 'my_controller'}
+    #   {'action' => 'my_action', 'controller' => 'my_controller'}
     def path_parameters
       @path_parameters ||= {}
     end
@@ -578,7 +588,13 @@ module ActionController
           end
           raise EOFError, "bad boundary end of body part" unless boundary_end=~/--/
 
-          body.rewind if body.respond_to?(:rewind)
+	  begin
+            body.rewind if body.respond_to?(:rewind)
+	  rescue Errno::ESPIPE
+            # Handles exceptions raised by input streams that cannot be rewound
+            # such as when using plain CGI under Apache
+	  end
+
           params
         end
     end

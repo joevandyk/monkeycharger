@@ -1,7 +1,6 @@
 require 'rake/testtask'
 require 'rake/rdoctask'
 require 'rake/gempackagetask'
-require 'rake/contrib/rubyforgepublisher'
 require File.join(File.dirname(__FILE__), 'lib', 'active_support', 'version')
 
 PKG_BUILD     = ENV['PKG_BUILD'] ? '.' + ENV['PKG_BUILD'] : ''
@@ -16,6 +15,7 @@ RUBY_FORGE_USER    = "webster132"
 
 task :default => :test
 Rake::TestTask.new { |t| 
+  t.libs << "test"
   t.pattern = 'test/**/*_test.rb'
   t.verbose = true
   t.warning = true
@@ -39,6 +39,7 @@ Rake::RDocTask.new { |rdoc|
 }
 
 spec = Gem::Specification.new do |s|
+  s.platform = Gem::Platform::RUBY
   s.name = PKG_NAME
   s.version = PKG_VERSION
   s.summary = "Support and utility classes used by the Rails framework."
@@ -74,6 +75,7 @@ end
 desc "Publish the release files to RubyForge."
 task :release => [ :package ] do
   require 'rubyforge'
+  require 'rake/contrib/rubyforgepublisher'
 
   packages = %w( gem tgz zip ).collect{ |ext| "pkg/#{PKG_NAME}-#{PKG_VERSION}.#{ext}" }
 

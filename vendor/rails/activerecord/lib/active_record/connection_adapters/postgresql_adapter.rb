@@ -165,6 +165,9 @@ module ActiveRecord
             # Character types
             when /\A'(.*)'::(?:character varying|bpchar|text)\z/m
               $1
+            # Character types (8.1 formatting)
+            when /\AE'(.*)'::(?:character varying|bpchar|text)\z/m
+              $1.gsub(/\\(\d\d\d)/) { $1.oct.chr }
             # Binary data types
             when /\A'(.*)'::bytea\z/m
               $1
@@ -383,8 +386,8 @@ module ActiveRecord
 
       # Executes an INSERT query and returns the new record's ID
       def insert(sql, name = nil, pk = nil, id_value = nil, sequence_name = nil)
-        table = sql.split(" ", 4)[2]
-        super || last_insert_id(table, sequence_name || default_sequence_name(table, pk))
+        table = sql.split(" ", 4)[2].gsub('"', '')
+        super || pk && last_insert_id(table, sequence_name || default_sequence_name(table, pk))
       end
 
       # Queries the database and returns the results in an Array or nil otherwise.

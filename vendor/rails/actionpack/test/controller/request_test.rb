@@ -1,4 +1,5 @@
 require File.dirname(__FILE__) + '/../abstract_unit'
+require 'action_controller/integration'
 
 class RequestTest < Test::Unit::TestCase
   def setup
@@ -306,11 +307,26 @@ class RequestTest < Test::Unit::TestCase
     end
   end
 
+  def test_invalid_http_method_raises_exception
+    set_request_method_to :random_method
+    assert_raises(ActionController::UnknownHttpMethod) do
+      @request.method
+    end
+  end
+
   def test_allow_method_hacking_on_post
     set_request_method_to :post
-    [:get, :put, :delete].each do |method|
+    [:get, :head, :options, :put, :post, :delete].each do |method|
       @request.instance_eval { @parameters = { :_method => method } ; @request_method = nil }
-      assert_equal method, @request.method
+      assert_equal(method == :head ? :get : method, @request.method)
+    end
+  end
+
+  def test_invalid_method_hacking_on_post_raises_exception
+    set_request_method_to :post
+    @request.instance_eval { @parameters = { :_method => :random_method } ; @request_method = nil }
+    assert_raises(ActionController::UnknownHttpMethod) do
+      @request.method
     end
   end
 
@@ -353,6 +369,13 @@ class RequestTest < Test::Unit::TestCase
   def test_content_type
     @request.env["CONTENT_TYPE"] = "text/html"
     assert_equal Mime::HTML, @request.content_type
+  end
+
+  def test_format_assignment_should_set_format
+    @request.instance_eval { self.format = :txt }
+    assert !@request.format.xml?
+    @request.instance_eval { self.format = :xml }
+    assert @request.format.xml?
   end
 
   def test_content_no_type
@@ -721,6 +744,16 @@ class MultipartRequestParameterParsingTest < Test::Unit::TestCase
     assert ('a' * 20480) == file.read
   end
 
+  uses_mocha "test_no_rewind_stream" do
+    def test_no_rewind_stream
+      # Ensures that parse_multipart_form_parameters works with streams that cannot be rewound
+      file = File.open(File.join(FIXTURE_PATH, 'large_text_file'), 'rb')
+      file.expects(:rewind).raises(Errno::ESPIPE)
+      params = ActionController::AbstractRequest.parse_multipart_form_parameters(file, 'AaB03x', file.stat.size, {})
+      assert_not_equal 0, file.pos  # file was not rewound after reading
+    end
+  end
+
   def test_binary_file
     params = process('binary_file')
     assert_equal %w(file flowers foo), params.keys.sort
@@ -763,7 +796,7 @@ end
 
 class XmlParamsParsingTest < Test::Unit::TestCase
   def test_single_file
-    person = parse_body("<person><name>David</name><avatar type='file' name='me.jpg' content_type='image/jpg'>#{Base64.encode64('ABC')}</avatar></person>")
+    person = parse_body("<person><name>David</name><avatar type='file' name='me.jpg' content_type='image/jpg'>#{ActiveSupport::Base64.encode64('ABC')}</avatar></person>")
 
     assert_equal "image/jpg", person['person']['avatar'].content_type
     assert_equal "me.jpg", person['person']['avatar'].original_filename
@@ -775,8 +808,8 @@ class XmlParamsParsingTest < Test::Unit::TestCase
       <person>
         <name>David</name>
         <avatars>
-          <avatar type='file' name='me.jpg' content_type='image/jpg'>#{Base64.encode64('ABC')}</avatar>
-          <avatar type='file' name='you.gif' content_type='image/gif'>#{Base64.encode64('DEF')}</avatar>
+          <avatar type='file' name='me.jpg' content_type='image/jpg'>#{ActiveSupport::Base64.encode64('ABC')}</avatar>
+          <avatar type='file' name='you.gif' content_type='image/gif'>#{ActiveSupport::Base64.encode64('DEF')}</avatar>
         </avatars>
       </person>
     end_body

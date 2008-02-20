@@ -1,8 +1,6 @@
-=begin rdoc
-
-= Base64 handling class
-
-=end
+#
+# version.rb
+#
 #--
 # Copyright (c) 1998-2003 Minero Aoki <aamine@loveruby.net>
 #
@@ -29,45 +27,12 @@
 # with permission of Minero Aoki.
 #++
 
-module TMail
+module TMail #:nodoc:
+  module VERSION #:nodoc:
+    MAJOR = 1
+    MINOR = 2
+    TINY  = 0
 
-  module Base64
-
-    module_function
-
-    def rb_folding_encode( str, eol = "\n", limit = 60 )
-      [str].pack('m')
-    end
-
-    def rb_encode( str )
-      [str].pack('m').tr( "\r\n", '' )
-    end
-
-    def rb_decode( str, strict = false )
-      str.unpack('m').first
-    end
-
-    begin
-      require 'tmail/base64.so'
-      alias folding_encode c_folding_encode
-      alias encode         c_encode
-      alias decode         c_decode
-      class << self
-        alias folding_encode c_folding_encode
-        alias encode         c_encode
-        alias decode         c_decode
-      end
-    rescue LoadError
-      alias folding_encode rb_folding_encode
-      alias encode         rb_encode
-      alias decode         rb_decode
-      class << self
-        alias folding_encode rb_folding_encode
-        alias encode         rb_encode
-        alias decode         rb_decode
-      end
-    end
-
+    STRING = [MAJOR, MINOR, TINY].join('.')
   end
-
 end

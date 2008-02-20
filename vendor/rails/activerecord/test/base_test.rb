@@ -40,6 +40,11 @@ class LooseDescendant < LoosePerson
   attr_protected :phone_number
 end
 
+class LooseDescendantSecond< LoosePerson
+  attr_protected :phone_number
+  attr_protected :name
+end
+
 class TightPerson < ActiveRecord::Base
   self.table_name = 'people'
   attr_accessible :name, :address
@@ -591,6 +596,13 @@ class BasicsTest < Test::Unit::TestCase
     end
   end
 
+  def test_update_all_ignores_order_limit_from_association
+    author = Author.find(1)
+    assert_nothing_raised do
+      assert_equal author.posts_with_comments_and_categories.length, author.posts_with_comments_and_categories.update_all("body = 'bulk update!'")
+    end
+  end
+
   def test_update_many
     topic_data = { 1 => { "content" => "1 updated" }, 2 => { "content" => "2 updated" } }
     updated = Topic.update(topic_data.keys, topic_data.values)
@@ -843,20 +855,23 @@ class BasicsTest < Test::Unit::TestCase
   
   def test_mass_assignment_protection_inheritance
     assert_nil LoosePerson.accessible_attributes
-    assert_equal [ :credit_rating, :administrator ], LoosePerson.protected_attributes
+    assert_equal Set.new([ 'credit_rating', 'administrator' ]), LoosePerson.protected_attributes
 
     assert_nil LooseDescendant.accessible_attributes
-    assert_equal [ :credit_rating, :administrator, :phone_number  ], LooseDescendant.protected_attributes
+    assert_equal Set.new([ 'credit_rating', 'administrator', 'phone_number' ]), LooseDescendant.protected_attributes
+
+    assert_nil LooseDescendantSecond.accessible_attributes
+    assert_equal Set.new([ 'credit_rating', 'administrator', 'phone_number', 'name' ]), LooseDescendantSecond.protected_attributes, 'Running attr_protected twice in one class should merge the protections'
 
     assert_nil TightPerson.protected_attributes
-    assert_equal [ :name, :address ], TightPerson.accessible_attributes
+    assert_equal Set.new([ 'name', 'address' ]), TightPerson.accessible_attributes
 
     assert_nil TightDescendant.protected_attributes
-    assert_equal [ :name, :address, :phone_number  ], TightDescendant.accessible_attributes
+    assert_equal Set.new([ 'name', 'address', 'phone_number' ]), TightDescendant.accessible_attributes
   end
   
   def test_readonly_attributes
-    assert_equal [ :title ], ReadonlyTitlePost.readonly_attributes
+    assert_equal Set.new([ 'title' ]), ReadonlyTitlePost.readonly_attributes
     
     post = ReadonlyTitlePost.create(:title => "cannot change this", :body => "changeable")
     post.reload
@@ -1267,6 +1282,15 @@ class BasicsTest < Test::Unit::TestCase
     assert_equal 1, topics(:first).parent_id
   end
   
+  def test_increment_attribute_by
+    assert_equal 50, accounts(:signals37).credit_limit
+    accounts(:signals37).increment! :credit_limit, 5
+    assert_equal 55, accounts(:signals37, :reload).credit_limit    
+
+    accounts(:signals37).increment(:credit_limit, 1).increment!(:credit_limit, 3)
+    assert_equal 59, accounts(:signals37, :reload).credit_limit
+  end
+  
   def test_decrement_attribute
     assert_equal 50, accounts(:signals37).credit_limit
 
@@ -1275,6 +1299,15 @@ class BasicsTest < Test::Unit::TestCase
   
     accounts(:signals37).decrement(:credit_limit).decrement!(:credit_limit)
     assert_equal 47, accounts(:signals37, :reload).credit_limit
+  end
+  
+  def test_decrement_attribute_by
+    assert_equal 50, accounts(:signals37).credit_limit
+    accounts(:signals37).decrement! :credit_limit, 5
+    assert_equal 45, accounts(:signals37, :reload).credit_limit    
+
+    accounts(:signals37).decrement(:credit_limit, 1).decrement!(:credit_limit, 3)
+    assert_equal 41, accounts(:signals37, :reload).credit_limit
   end
   
   def test_toggle_attribute
@@ -1724,9 +1757,67 @@ class BasicsTest < Test::Unit::TestCase
 
   def test_attribute_for_inspect
     t = topics(:first)
-    t.content = %(This is some really long content, longer than 50 characters, so I can test that text is truncated correctly by the new ActiveRecord::Base#inspect method! Yay! BOOM!)
+    t.title = "The First Topic Now Has A Title With\nNewlines And More Than 50 Characters"
 
     assert_equal %("#{t.written_on.to_s(:db)}"), t.attribute_for_inspect(:written_on)
-    assert_equal '"This is some really long content, longer than 50 ch..."', t.attribute_for_inspect(:content)
+    assert_equal '"The First Topic Now Has A Title With\nNewlines And M..."', t.attribute_for_inspect(:title)
+  end
+  
+  def test_becomes
+    assert_kind_of Reply, topics(:first).becomes(Reply)
+    assert_equal "The First Topic", topics(:first).becomes(Reply).title
+  end
+
+  def test_silence_sets_log_level_to_error_in_block
+    original_logger = ActiveRecord::Base.logger
+    log = StringIO.new
+    ActiveRecord::Base.logger = Logger.new(log)
+    ActiveRecord::Base.logger.level = Logger::DEBUG
+    ActiveRecord::Base.silence do
+      ActiveRecord::Base.logger.warn "warn"
+      ActiveRecord::Base.logger.error "error"
+    end
+    assert_equal "error\n", log.string
+  ensure
+    ActiveRecord::Base.logger = original_logger
+  end
+
+  def test_silence_sets_log_level_back_to_level_before_yield
+    original_logger = ActiveRecord::Base.logger
+    log = StringIO.new
+    ActiveRecord::Base.logger = Logger.new(log)
+    ActiveRecord::Base.logger.level = Logger::WARN
+    ActiveRecord::Base.silence do
+    end
+    assert_equal Logger::WARN, ActiveRecord::Base.logger.level
+  ensure
+    ActiveRecord::Base.logger = original_logger
+  end
+
+  def test_benchmark_with_log_level
+    original_logger = ActiveRecord::Base.logger
+    log = StringIO.new
+    ActiveRecord::Base.logger = Logger.new(log)
+    ActiveRecord::Base.logger.level = Logger::WARN
+    ActiveRecord::Base.benchmark("Debug Topic Count", Logger::DEBUG) { Topic.count }
+    ActiveRecord::Base.benchmark("Warn Topic Count",  Logger::WARN)  { Topic.count }
+    ActiveRecord::Base.benchmark("Error Topic Count", Logger::ERROR) { Topic.count }
+    assert_no_match /Debug Topic Count/, log.string
+    assert_match /Warn Topic Count/, log.string
+    assert_match /Error Topic Count/, log.string
+  ensure
+    ActiveRecord::Base.logger = original_logger
+  end
+
+  def test_benchmark_with_use_silence
+    original_logger = ActiveRecord::Base.logger
+    log = StringIO.new
+    ActiveRecord::Base.logger = Logger.new(log)
+    ActiveRecord::Base.benchmark("Logging", Logger::DEBUG, true) { ActiveRecord::Base.logger.debug "Loud" }
+    ActiveRecord::Base.benchmark("Logging", Logger::DEBUG, false)  { ActiveRecord::Base.logger.debug "Quiet" }
+    assert_no_match /Loud/, log.string
+    assert_match /Quiet/, log.string
+  ensure
+    ActiveRecord::Base.logger = original_logger
   end
 end

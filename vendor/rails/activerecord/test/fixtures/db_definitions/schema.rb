@@ -307,6 +307,8 @@ ActiveRecord::Schema.define do
 
   create_table :parrots, :force => true do |t|
     t.column :name, :string
+    t.column :parrot_sti_class, :string
+    t.column :killer_id, :integer
     t.column :created_at, :datetime
     t.column :created_on, :datetime
     t.column :updated_at, :datetime
@@ -334,5 +336,19 @@ ActiveRecord::Schema.define do
   create_table :parrots_treasures, :id => false, :force => true do |t|
     t.column :parrot_id, :integer
     t.column :treasure_id, :integer
+  end
+
+  create_table :mateys, :id => false, :force => true do |t|
+    t.column :pirate_id, :integer
+    t.column :target_id, :integer
+    t.column :weight, :integer
+  end
+
+  create_table :ships, :force => true do |t|
+    t.string :name
+    t.datetime :created_at
+    t.datetime :created_on
+    t.datetime :updated_at
+    t.datetime :updated_on
   end
 end

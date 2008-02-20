@@ -9,7 +9,12 @@ module YAML #:nodoc:
   end
 end
 
-class FixtureClassNotFound < ActiveRecord::ActiveRecordError #:nodoc:
+if defined? ActiveRecord
+  class FixtureClassNotFound < ActiveRecord::ActiveRecordError #:nodoc:
+  end
+else
+  class FixtureClassNotFound < StandardError #:nodoc:
+  end
 end
 
 # Fixtures are a way of organizing data that you want to test against; in short, sample data. They come in 3 flavors:
@@ -433,7 +438,7 @@ end
 #
 # Any fixture labeled "DEFAULTS" is safely ignored.
 
-class Fixtures < YAML::Omap
+class Fixtures < (RUBY_VERSION < '1.9' ? YAML::Omap : Hash)
   DEFAULT_FILTER_RE = /\.ya?ml$/
 
   @@all_cached_fixtures = {}
@@ -462,7 +467,7 @@ class Fixtures < YAML::Omap
   end
 
   def self.cache_fixtures(connection, fixtures)
-    cache_for_connection(connection).update(fixtures.index_by(&:table_name))
+    cache_for_connection(connection).update(fixtures.index_by { |f| f.table_name })
   end
 
   def self.instantiate_fixtures(object, table_name, fixtures, load_instances = true)
@@ -563,10 +568,12 @@ class Fixtures < YAML::Omap
     each do |label, fixture|
       row = fixture.to_hash
 
-      if model_class && model_class < ActiveRecord::Base && !row[primary_key_name]
-        # fill in timestamp columns if they aren't specified
-        timestamp_column_names.each do |name|
-          row[name] = now unless row.key?(name)
+      if model_class && model_class < ActiveRecord::Base
+        # fill in timestamp columns if they aren't specified and the model is set to record_timestamps
+        if model_class.record_timestamps
+          timestamp_column_names.each do |name|
+            row[name] = now unless row.key?(name)
+          end
         end
 
         # interpolate the fixture label
@@ -574,13 +581,26 @@ class Fixtures < YAML::Omap
           row[key] = label if value == "$LABEL"
         end
 
-        # generate a primary key
-        row[primary_key_name] = Fixtures.identify(label)
+        # generate a primary key if necessary
+        if has_primary_key_column? && !row.include?(primary_key_name)
+          row[primary_key_name] = Fixtures.identify(label)
+        end
 
-        model_class.reflect_on_all_associations.each do |association|
+        # If STI is used, find the correct subclass for association reflection
+        reflection_class =
+          if row.include?(inheritance_column_name)
+            row[inheritance_column_name].constantize rescue model_class
+          else
+            model_class
+          end
+
+        reflection_class.reflect_on_all_associations.each do |association|
           case association.macro
           when :belongs_to
-            if value = row.delete(association.name.to_s)
+            # Do not replace association name with association foreign key if they are named the same
+            fk_name = (association.options[:foreign_key] || "#{association.name}_id").to_s
+
+            if association.name.to_s != fk_name && value = row.delete(association.name.to_s)
               if association.options[:polymorphic]
                 if value.sub!(/\s*\(([^\)]*)\)\s*$/, "")
                   target_type = $1
@@ -591,7 +611,6 @@ class Fixtures < YAML::Omap
                 end
               end
 
-              fk_name = (association.options[:foreign_key] || "#{association.name}_id").to_s
               row[fk_name] = Fixtures.identify(value)
             end
           when :has_and_belongs_to_many
@@ -601,7 +620,7 @@ class Fixtures < YAML::Omap
 
               targets.each do |target|
                 join_fixtures["#{label}_#{target}"] = Fixture.new(
-                  { association.primary_key_name => Fixtures.identify(label),
+                  { association.primary_key_name => row[primary_key_name],
                     association.association_foreign_key => Fixtures.identify(target) }, nil)
               end
             end
@@ -625,18 +644,35 @@ class Fixtures < YAML::Omap
     end
 
     def model_class
-      @model_class ||= @class_name.is_a?(Class) ?
-        @class_name : @class_name.constantize rescue nil
+      unless defined?(@model_class)
+        @model_class =
+          if @class_name.nil? || @class_name.is_a?(Class)
+            @class_name
+          else
+            @class_name.constantize rescue nil
+          end
+      end
+
+      @model_class
     end
 
     def primary_key_name
       @primary_key_name ||= model_class && model_class.primary_key
     end
 
+    def has_primary_key_column?
+      @has_primary_key_column ||= model_class && primary_key_name &&
+        model_class.columns.find { |c| c.name == primary_key_name }
+    end
+
     def timestamp_column_names
       @timestamp_column_names ||= %w(created_at created_on updated_at updated_on).select do |name|
         column_names.include?(name)
       end
+    end
+
+    def inheritance_column_name
+      @inheritance_column_name ||= model_class && model_class.inheritance_column
     end
 
     def column_names
@@ -653,7 +689,7 @@ class Fixtures < YAML::Omap
         Dir.entries(@fixture_path).each do |file|
           path = File.join(@fixture_path, file)
           if File.file?(path) and file !~ @file_filter
-            self[file] = Fixture.new(path, @class_name)
+            self[file] = Fixture.new(path, model_class)
           end
         end
       end
@@ -681,20 +717,20 @@ class Fixtures < YAML::Omap
               raise Fixture::FormatError, "Bad data for #{@class_name} fixture named #{name} (nil)"
             end
 
-            self[name] = Fixture.new(data, @class_name)
+            self[name] = Fixture.new(data, model_class)
           end
         end
       end
     end
 
     def read_csv_fixture_files
-      reader = CSV::Reader.create(erb_render(IO.read(csv_file_path)))
+      reader = CSV.parse(erb_render(IO.read(csv_file_path)))
       header = reader.shift
       i = 0
       reader.each do |row|
         data = {}
         row.each_with_index { |cell, j| data[header[j].to_s.strip] = cell.to_s.strip }
-        self["#{Inflector::underscore(@class_name)}_#{i+=1}"]= Fixture.new(data, @class_name)
+        self["#{Inflector::underscore(@class_name)}_#{i+=1}"] = Fixture.new(data, model_class)
       end
     end
 
@@ -730,9 +766,9 @@ class Fixture #:nodoc:
   class FormatError < FixtureError #:nodoc:
   end
 
-  attr_reader :class_name
+  attr_reader :model_class
 
-  def initialize(fixture, class_name)
+  def initialize(fixture, model_class)
     case fixture
       when Hash, YAML::Omap
         @fixture = fixture
@@ -742,7 +778,11 @@ class Fixture #:nodoc:
         raise ArgumentError, "Bad fixture argument #{fixture.inspect} during creation of #{class_name} fixture"
     end
 
-    @class_name = class_name
+    @model_class = model_class.is_a?(Class) ? model_class : model_class.constantize rescue nil
+  end
+
+  def class_name
+    @model_class.name if @model_class
   end
 
   def each
@@ -763,21 +803,18 @@ class Fixture #:nodoc:
   end
 
   def value_list
-    klass = @class_name.constantize rescue nil
-
     list = @fixture.inject([]) do |fixtures, (key, value)|
-      col = klass.columns_hash[key] if klass.respond_to?(:ancestors) && klass.ancestors.include?(ActiveRecord::Base)
+      col = model_class.columns_hash[key] if model_class.respond_to?(:ancestors) && model_class.ancestors.include?(ActiveRecord::Base)
       fixtures << ActiveRecord::Base.connection.quote(value, col).gsub('[^\]\\n', "\n").gsub('[^\]\\r', "\r")
     end
     list * ', '
   end
 
   def find
-    klass = @class_name.is_a?(Class) ? @class_name : Object.const_get(@class_name) rescue nil
-    if klass
-      klass.find(self[klass.primary_key])
+    if model_class
+      model_class.find(self[model_class.primary_key])
     else
-      raise FixtureClassNotFound, "The class #{@class_name.inspect} was not found."
+      raise FixtureClassNotFound, "No class attached to find."
     end
   end
 

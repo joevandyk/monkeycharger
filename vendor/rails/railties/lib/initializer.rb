@@ -176,7 +176,7 @@ module Rails
     #
     # In the default implementation, as each plugin discovered in <tt>plugin_paths</tt> is initialized:
     # * its +lib+ directory, if present, is added to the load path (immediately after the applications lib directory)
-    # * <tt>init.rb</tt> is evalutated, if present
+    # * <tt>init.rb</tt> is evaluated, if present
     #
     # After all plugins are loaded, duplicates are removed from the load path.
     # If an array of plugin names is specified in config.plugins, only those plugins will be loaded
@@ -217,11 +217,15 @@ module Rails
       end
     end
 
-    # This initialzation sets $KCODE to 'u' to enable the multibyte safe operations.
-    # Plugin authors supporting other encodings should override this behaviour and
-    # set the relevant +default_charset+ on ActionController::Base
+    # For Ruby 1.8, this initialization sets $KCODE to 'u' to enable the
+    # multibyte safe operations. Plugin authors supporting other encodings
+    # should override this behaviour and set the relevant +default_charset+
+    # on ActionController::Base.
+    #
+    # For Ruby 1.9, this does nothing. Specify the default encoding in the Ruby
+    # shebang line if you don't want UTF-8.
     def initialize_encoding
-      $KCODE='u'
+      $KCODE='u' if RUBY_VERSION < '1.9'
     end
 
     # This initialization routine does nothing unless <tt>:active_record</tt>
