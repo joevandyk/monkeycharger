@@ -7,3 +7,4 @@ Rails::Initializer.run do |config|
 end
 
 require 'lib/big_decimal'
+raise "\n\n!!! Make sure to create and modify config/initializers/monkeycharger.rb!  (sample in config/initializers/monkeycharger.rb.example) !!!\n\n" unless File.exist?("config/initializers/monkeycharger.rb")

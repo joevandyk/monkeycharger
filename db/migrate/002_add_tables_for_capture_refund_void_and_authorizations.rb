@@ -2,32 +2,32 @@ class AddTablesForCaptureRefundVoidAndAuthorizations < ActiveRecord::Migration
   def self.up
 
     create_table :authorizations do |t|
-      integer     :credit_card_id
-      integer     :transaction_id,  :null => false
-      string      :last_four_digits, :null => false
-      decimal     :amount,          :null => false
-      timestamps!
+      t.column :credit_card_id, :integer
+      t.column :transaction_id, :integer, :null => false
+      t.column :last_four_digits, :string, :null => false      
+      t.column :amount, :decimal, :null => false
+      t.timestamps
     end
 
     create_table :captures do |t|
-      foreign_key :authorization, :ref => true
-      integer     :transaction_id, :null => false
-      decimal     :amount, :null => false
-      timestamps!
+      t.column :authorization, :integer, :null => false
+      t.column :transaction_id, :integer, :null => false
+      t.column :amount, :integer, :null => false
+      t.timestamps
     end
 
     create_table :refunds do |t|
-      foreign_key :authorization,   :ref => true
-      integer     :transaction_id,  :null => false
-      decimal     :amount,          :null => false
-      timestamps!
+      t.column :authorization,  :integer,  :null => false
+      t.column :transaction_id, :integer,  :null => false
+      t.column :amount, :decimal, :null => false
+      t.timestamps
     end
 
     create_table :voids do |t|
-      integer :voidee_id,       :null => false
-      string  :voidee_type,     :null => false
-      integer :transaction_id,  :null => false
-      timestamps!
+      t.column :voidee_id, :integer,:null => false
+      t.column :voidee_type, :string, :null => false
+      t.column :transaction_id, :integer,  :null => false
+      t.timestamps
     end
 
   end

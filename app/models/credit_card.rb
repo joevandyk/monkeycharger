@@ -2,7 +2,7 @@ class CreditCard < ActiveRecord::Base
    include ActiveMerchant::Billing::CreditCardMethods
    include ActiveMerchant::Billing::CreditCardMethods::ClassMethods
 
-   attr_accessor :number, :passphrase
+   attr_accessor :number, :passphrase, :iv
 
    validates_presence_of :name, :number, :street_address, :state, :zip, :country, :number, :city
 

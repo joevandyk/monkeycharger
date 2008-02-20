@@ -1,14 +1,10 @@
 development:
-  adapter: postgresql
+  adapter: sqlite3
   encoding: unicode
-  database: monkey_charger_development
+  database: db/monkey_charger_development.db
 
 test:
-  adapter: postgresql
+  adapter: sqlite3
   encoding: unicode
-  database: monkey_charger_test
+  database: db/monkey_charger_test.db
 
-production:
-  adapter: postgresql
-  encoding: unicode
-  database: monkey_charger_production

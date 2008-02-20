@@ -104,3 +104,23 @@ describe "Editing a saved credit card" do
     @card.number.should == '4242424242424242'
   end 
 end
+
+describe "A saved credit card" do
+  before(:each) do
+    @number = "4111111111111111"
+    @card = generate_credit_card(:number => @number)
+  end
+  
+  it "an attacker should not be able to decrypt the card number without a passphrase" do
+    card = CreditCard.find @card.id
+    
+    cipher = card.send(:cipher)
+    cipher.decrypt
+    cipher.key = card.send(:key)
+    # cipher.iv = card.iv  NOTE: iv no longer stupidly stored
+    cipher.iv = "some random one that shouldn't work"
+    data = cipher.update(card.send(:decode_from_base64, card.crypted_number))
+    data << cipher.final
+    data.should_not == @number
+  end
+end
