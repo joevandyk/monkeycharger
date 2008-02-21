@@ -34,10 +34,17 @@ module Spec
       #   end
       #
       def describe(*args, &example_group_block)
+        args << {} unless Hash === args.last
         if example_group_block
-          self.subclass("Subclass") do
-            describe(*args)
-            module_eval(&example_group_block)
+          params = args.last
+          params[:spec_path] = eval("caller(0)[1]", example_group_block) unless params[:spec_path]
+          if params[:shared]
+            SharedExampleGroup.new(*args, &example_group_block)
+          else
+            self.subclass("Subclass") do
+              describe(*args)
+              module_eval(&example_group_block)
+            end
           end
         else
           set_description(*args)
@@ -107,6 +114,7 @@ module Spec
       def xit(description=nil, opts={}, &block)
         Kernel.warn("Example disabled: #{description}")
       end
+      alias_method :xspecify, :xit
 
       def run
         examples = examples_to_run
