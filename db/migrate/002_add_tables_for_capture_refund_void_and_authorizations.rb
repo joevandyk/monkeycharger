@@ -10,7 +10,7 @@ class AddTablesForCaptureRefundVoidAndAuthorizations < ActiveRecord::Migration
     end
 
     create_table :captures do |t|
-      t.column :authorization, :integer, :null => false
+      t.column :authorization_id, :integer, :null => false
       t.column :transaction_id, :integer, :null => false
       t.column :amount, :integer, :null => false
       t.timestamps
