@@ -14,6 +14,45 @@ to successfully run those tests.  Running 'rake spec' doesn't hit any remote gat
 Also, before running the tests, cp config/initializers/monkeycharger.rb.example to 
 config/initializers/monkeycharger.rb.
 
+=API summary=
 
-Copyright (c) 2007 Joe Van Dyk, released under the MIT license
+==Storing Credit Cards==
+
+  * `POST /credit_cards.xml`  
+  use with parameters such as number, cvv, month, year, name, etc.  
+  You'll also need to supply a passphrase parameter.  Use the passphrase parameter when authorizing against the saved card.
+
+Uses the ActiveResource conventions.  But this might change -- ActiveResource might be overkill for this.
+
+==Authorizing credit cards==
+
+  * `POST /authorizations.xml` use parameters amount and the same credit card group as above. 
+  * `POST /authorizations.xml` use parameters amount and a credit_card_id. 
+
+Both these return a transaction_id and a X-AuthorizationSuccess HTTP header on success, 
+or text that represents the failure reason if it failed to authorize the card.
+
+==Capturing==
+
+  * `POST /captures.xml` use parameters amount and transaction_id.
+
+If the capture was successful, the X-CaptureSuccess HTTP header will be set.  If not successful, will return the reason why.
+
+==Cancelling==
+
+  * `POST /cancelations.xml` use parameter transaction_id.
+
+==Refunds==
+
+  * `POST /refunds.xml` use parameters amount, transaction_id, and last_four_digits_of_credit_card
+
+==Rails Way Writeup==
+
+Jamis Buck did a write-up on monkeycharger: http://www.therailsway.com/2007/9/3/using-activeresource-to-consume-web-services
+
+Also, MonkeyCharger was featured in "The Rails Way" book by Obie Fernandez on an example of how to 
+write good, descriptive tests for a Rails application.
+
+
+Copyright (c) 2009 Joe Van Dyk, released under the MIT license
 
